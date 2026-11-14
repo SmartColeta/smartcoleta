@@ -126,8 +126,18 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.9 17.9A10.7 10.7 0 0 1 12 20C5 20 1 12 1 12a18 18 0 0 1 5.1-5.9M9.9 4.2A10.6 10.6 0 0 1 12 4c7 0 11 8 11 8a18 18 0 0 1-2.2 3.2M1 1l22 22"/></svg>
             </button>
           </div>
-            <p class="dica">Use 8 ou mais caracteres, com letras maiúsculas e minúsculas, números e caracteres especiais (!, @, #, $...).</p>
+           <div class="forca-senha">
+  <div class="barra-forca"><span id="barraForca"></span></div>
+  <p class="texto-forca" id="textoForca">Digite sua senha</p>
 
+  <ul class="requisitos">
+    <li data-req="tamanho"><span class="icone">✗</span> Mínimo de 8 caracteres</li>
+    <li data-req="maiuscula"><span class="icone">✗</span> Letra maiúscula</li>
+    <li data-req="minuscula"><span class="icone">✗</span> Letra minúscula</li>
+    <li data-req="numero"><span class="icone">✗</span> Número</li>
+    <li data-req="especial"><span class="icone">✗</span> Caractere especial (!, @, #, $...)</li>
+  </ul>
+</div>
           <!-- Campo Confirmar senha + botão mostrar/ocultar -->
           <div class="campo" id="campoConfirmar">
             <label for="confirmar">Confirmar senha</label>
