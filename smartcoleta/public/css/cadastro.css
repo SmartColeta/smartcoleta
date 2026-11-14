@@ -329,3 +329,45 @@
 
 /* Respeita quem prefere menos animação */
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+.forca-senha { margin: 4px 0 16px; }
+
+.barra-forca {
+  height: 6px;
+  background: #e5e7eb;
+  border-radius: 99px;
+  overflow: hidden;
+}
+.barra-forca span {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 99px;
+  background: #dc2626;
+  transition: width .25s ease, background .25s ease;
+}
+
+.texto-forca {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 6px 0 8px;
+  color: #6b7280;
+}
+
+.requisitos {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+.requisitos li {
+  font-size: 13px;
+  color: #dc2626;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: color .2s ease;
+}
+.requisitos li.ok { color: #16a34a; }
+.requisitos .icone { font-weight: 700; width: 14px; text-align: center; }
