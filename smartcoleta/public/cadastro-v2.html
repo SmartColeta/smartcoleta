@@ -114,13 +114,13 @@
 
           <!-- Campo E-mail -->
           <div class="campo" id="campoEmail">
-            <label for="email">E-mail</label>
+            <label for="input_email">E-mail</label>
             <input type="email" id="input_email" name="email" placeholder="Digite o email para contato" required>
           </div>
 
           <!-- Campo Senha (mínimo 8 caracteres) + botão mostrar/ocultar -->
           <div class="campo" id="campoSenha">
-            <label for="senha">Senha</label>
+            <label for="input_senha">Senha</label>
             <input type="password" id="input_senha" name="senha" placeholder="Crie uma senha" minlength="8" required>
             <button type="button" class="btn-olho" data-alvo="input_senha" aria-label="Mostrar senha">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.9 17.9A10.7 10.7 0 0 1 12 20C5 20 1 12 1 12a18 18 0 0 1 5.1-5.9M9.9 4.2A10.6 10.6 0 0 1 12 4c7 0 11 8 11 8a18 18 0 0 1-2.2 3.2M1 1l22 22"/></svg>
@@ -140,7 +140,7 @@
 </div>
           <!-- Campo Confirmar senha + botão mostrar/ocultar -->
           <div class="campo" id="campoConfirmar">
-            <label for="confirmar">Confirmar senha</label>
+            <label for="input_confirmar">Confirmar senha</label>
             <input type="password" id="input_confirmar" name="confirmar" placeholder="Repita a senha" autocomplete="new-password" required>
             <button type="button" class="btn-olho" data-alvo="input_confirmar" aria-label="Mostrar senha">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.9 17.9A10.7 10.7 0 0 1 12 20C5 20 1 12 1 12a18 18 0 0 1 5.1-5.9M9.9 4.2A10.6 10.6 0 0 1 12 4c7 0 11 8 11 8a18 18 0 0 1-2.2 3.2M1 1l22 22"/></svg>
@@ -238,16 +238,16 @@
        ===================================================== -->
   <script> 
 
-  const form = document.getElementById('formCadastro');
-    const msgErro = document.getElementById('mensagemErro');
-    const btnCadastrar = document.getElementById('btnCadastrar');
+  let form = document.getElementById('formCadastro');
+    let msgErro = document.getElementById('mensagemErro');
+    let btnCadastrar = document.getElementById('btnCadastrar');
     let timerErro;
 
     // ---- 4.1 Mostrar/ocultar senha (funciona para os dois campos) ----
     document.querySelectorAll('.btn-olho').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        const campo = document.getElementById(btn.dataset.alvo);
-        const mostrar = campo.type === 'password';
+        let campo = document.getElementById(btn.dataset.alvo);
+        let mostrar = campo.type === 'password';
         campo.type = mostrar ? 'text' : 'password';
         btn.setAttribute('aria-label', mostrar ? 'Ocultar senha' : 'Mostrar senha');
       });
@@ -272,6 +272,48 @@
       
     }
 
+    // ---- Força da senha ao vivo ----
+let ESPECIAIS_LIVE = "!@#$%&*()-_=+[]{};:,.<>?/|~";
+let inputSenha = document.getElementById('input_senha');
+let barraForca = document.getElementById('barraForca');
+let textoForca = document.getElementById('textoForca');
+
+function avaliarSenha(senha) {
+  return {
+    tamanho: senha.length >= 8,
+    maiuscula: /[A-Z]/.test(senha),
+    minuscula: /[a-z]/.test(senha),
+    numero: /[0-9]/.test(senha),
+    especial: senha.split('').some(function (c) { return ESPECIAIS_LIVE.includes(c); })
+  };
+}
+
+inputSenha.addEventListener('input', function () {
+  let senha = inputSenha.value;
+  let r = avaliarSenha(senha);
+  let cumpridos = 0;
+
+  document.querySelectorAll('.requisitos li').forEach(function (li) {
+    let ok = r[li.dataset.req];
+    li.classList.toggle('ok', ok);
+    li.querySelector('.icone').textContent = ok ? '✓' : '✗';
+    if (ok) cumpridos++;
+  });
+
+  let texto = 'Digite sua senha';
+  let cor = '#6b7280';
+  if (senha.length > 0) {
+    if (cumpridos <= 2)      { texto = 'Senha fraca';  cor = '#dc2626'; }
+    else if (cumpridos <= 4) { texto = 'Senha média';  cor = '#f59e0b'; }
+    else                     { texto = 'Senha forte';  cor = '#16a34a'; }
+  }
+
+  barraForca.style.width = (cumpridos / 5 * 100) + '%';
+  barraForca.style.background = cor;
+  textoForca.textContent = texto;
+  textoForca.style.color = cor;
+});
+
     // ---- 4.3 Envio do formulário ----
     form.addEventListener('submit', function (evento) {
       evento.preventDefault();
@@ -280,11 +322,11 @@
  
 
       // Os valores agora são lidos NO MOMENTO DO ENVIO (antes eram lidos ao carregar a página, vazios)
-      const nome = document.getElementById('input_nome').value.trim();
-      const codigoAcesso = document.getElementById('input_codigo').value.trim();
-      const email = document.getElementById('input_email').value.trim();
-      const senha = document.getElementById('input_senha').value;
-      const confirmar = document.getElementById('input_confirmar').value;
+      let nome = document.getElementById('input_nome').value.trim();
+      let codigoAcesso = document.getElementById('input_codigo').value.trim();
+      let email = document.getElementById('input_email').value.trim();
+      let senha = document.getElementById('input_senha').value;
+      let confirmar = document.getElementById('input_confirmar').value;
 
       if (nome.length < 3) return mostrarErro('Informe seu nome.', 'campoNome');
       if (codigoAcesso == '') return mostrarErro('Informe o código de acesso da sua prefeitura.', 'campoCodigo');
@@ -295,11 +337,11 @@
       let temMinuscula = false;
       let temNumero = false;
       let temEspecial = false;
-      const especiais = "!@#$%&*()-_=+[]{};:,.<>?/|~";
+      let especiais = "!@#$%&*()-_=+[]{};:,.<>?/|~";
 
       // Olha cada caractere da senha, um por um
       for (let i = 0; i < senha.length; i++) {
-        const letra = senha[i];
+        let letra = senha[i];
 
         if (letra >= 'A' && letra <= 'Z') {
           temMaiuscula = true;

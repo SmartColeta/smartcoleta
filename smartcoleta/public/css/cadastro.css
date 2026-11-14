@@ -332,7 +332,9 @@
 
 .forca-senha { margin: 4px 0 16px; }
 
-.barra-forca {
+/* VALIDAR SE PODE USAR ISSO COM O GRUPO
+
+/*.barra-forca {
   height: 6px;
   background: #e5e7eb;
   border-radius: 99px;
@@ -346,7 +348,7 @@
   background: #dc2626;
   transition: width .25s ease, background .25s ease;
 }
-
+*/
 .texto-forca {
   font-size: 13px;
   font-weight: 600;
