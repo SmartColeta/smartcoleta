@@ -911,3 +911,617 @@
    .painel-lista-fundo {
 		position: relative;
    }
+   .painel-lista-modal {
+		left: 50%;
+		top: 50%;
+		width: min(400px, calc(100vw - 32px));
+		max-height: calc(100vh - 48px);
+		transform: translate(-50%, -50%);
+   }
+
+
+   /* --------------------------------------------------------------------------
+   3. TABELA DE COMPARTIMENTOS
+   -------------------------------------------------------------------------- */
+/* a tabela é um container: as colunas extras somem quando o card fica estreito */
+.card-tabela {
+	container: tabela / inline-size;
+}
+
+.card-cabecalho {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px 16px;
+}
+
+.linha-detalhe-ponto .card-cabecalho{
+	flex-wrap: nowrap;
+	align-items: flex-start;
+	margin-bottom: 8px;
+}
+
+.linnha-detalhe-ponto .card-cabecalho > div {
+	min-width: 0;
+}
+
+.linha-detalhe-ponto .card-cabecalho > .seletor-periodo,
+.linha-detalhe-ponto .card-cabecalho > .filtro-data {
+	flex-shrink: 0;
+}
+
+.filtros {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.filtro-busca, 
+.filtro-bairro {
+	padding: 7px 10px;
+	font-size: 13px;
+	color: var(--escuro);
+	background-color: #fff;
+	border: 1.5px solid var(--borda);
+	border-radius: 9px;
+}
+
+.filtro-busca {
+	width: 220px;
+}
+
+.filtro-busca:focus,
+.filtro-bairro:focus {
+	outline: 2px solid rgba(2, 146, 93, 0.35);
+	border-color: var(--verde);
+}
+
+/* CHIPS: filtro por situação, com a quantidade */
+.chips-linha {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px 12px;
+	margin: 10px 0 8px;
+}
+
+.chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.tabela-contagem {
+	color: (var(--cinzado));
+	font-size: 12.5px;
+}
+
+.chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 10px;
+	color: var(--escuro);
+	font-size: 12.5px;
+	font-weight: 500;
+	background-color: #fff;
+	border: 1.5px solid var(--borda);
+	border-radius: 999px;
+	cursor: pointer;
+}
+
+.chip span {
+	font-weight: 800;
+}
+
+.chip i {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+}
+
+.chip-critico i {background-color: var(--vermelho);}
+.chip-atencao i {background-color: var(--amarelo);}
+.chip-breve i {background-color: transparent; border: 2px solid var(--amarelo);}
+.chip-semleitura i {background-color: var(--cinza-sensor);}
+.chip-normal i {background-color: var(--lima);}
+
+.chip:hover {
+	border-color: var(--verde);
+}
+
+.chip-ativo {
+	color: #fff;
+	background-color: var(--escuro);
+	border-color: var(--escuro);
+}
+
+/* a tabela rola por dentro do card */
+.tabela-rolagem {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	border-top: 1px solid var(--borda);
+}
+
+.tabela {
+	width: 100%;
+	border-collapse: separate;
+	border-spacing: 0;
+	font-size: 13px;
+}
+
+.tabela th {
+	position: sticky; /* o cabeçalho fica parado enquanto a tabela rola */
+	top: 0;
+	z-index: 1;
+	padding: 0;
+	text-align: left;
+	background-color: var(--fundo);
+	border-bottom: 1px solid var(--borda);
+}
+
+.tabela th button {
+	display: block;
+	width: 100%;
+	padding: 8px 10px;
+	color: var(--escuro);
+	font-size: 12px;
+	font-weight: 700;
+	text-align: left;
+	white-space: nowrap;
+	background: none;
+	border: none;
+}
+
+.tabela th button {
+	cursor: pointer;
+}
+
+/* tabela de leituras (visão do ponto): cabeçalho sem botão de ordenar */
+.tabela-leituras th {
+	padding: 8px 10px;
+	color: var(--escuro);
+	font-size: 12px;
+	font-weight: 700;
+	white-space: nowrap;
+}
+
+.tabela th button:hover {
+	color: var(--verde);
+}
+
+.tabela th button.ordenado::after {
+	content: ' ▼';
+	font-size: 9px;
+}
+
+.tabela th button.ordenado.invertido::after {
+	content: ' ▲';
+}
+
+.tabela td {
+	padding: 6px 10px;
+	white-space: nowrap;
+	border-bottom: 1px solid var(--borda);
+}
+
+.card-tabela tbody tr {
+	cursor: pointer;
+}
+
+.card-tabela tbody tr:hover td {
+	background-color: var(--fundo);
+}
+
+.card-tabela tbody tr:focus {
+	outline: 2px solid var(--verde);
+	outline-offset: -2px;
+}
+
+.sensor-num {
+	margin-left: 6px;
+	color: var(--cinzado);
+	font-size: 11.5px;
+}
+
+.col-ponto {
+	max-width: 6px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.ponto-rua {
+	font-weight: 700;
+}
+
+.ponto-bairro {
+	margin-left: 6px;
+	color: var(--cinzado);
+	font-size: 12px;
+}
+
+.co-previsao,
+.col-leitura {
+	color: var(--cinzado);
+}
+
+.tabela-vazia {
+	padding: 24px;
+	color: var(--cinzado);
+	font-size: 13px;
+	text-align: center;
+}
+
+/* selo da situação */
+.situacao {
+	display: inline-block;
+	min-width: 76px;
+	padding: 3px 8px;
+	font-size: 11.5px;
+	font-weight: 700;
+	text-align: center;
+	border-radius: 999px;
+}
+
+.situacao-critico {color: var(--vermelho-texto); background-color: rgba(214, 69, 69, 0.14);}
+.situacao-atencao {color: var(--amarelo-texto); background-color: rgba(242, 183, 5, 0.2);}
+.situacao-normal {color: var(--verde); background-color: rgba(2, 146, 93, 0.12);}
+.situacao-semleitura {color: #4A5A52; background-color: #E7ECE9;}
+
+/* BARRA DO NÍVEL com um traço em cada limite (atenção e crítico) */
+.nivel-celula {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.barra {
+	position: relative;
+	display: inline-block;
+	width: 70px;
+	height: 8px;
+	flex-shrink: 0;
+	background-color: #E6EEE9;
+	border-radius: 999px;
+}
+
+.barra-preenchimento {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: 0;
+	border-radius: 999px;
+}
+
+.barra-critico {background-color: var(--vermelho);}
+.barra-atencao {background-color: var(--amarelo);}
+.barra-normal {background-color: var(--lima);}
+.barra-semçeitura {background-color: #C3CEC8;}
+
+.barra-limite {
+	position: absolute;
+	top: -3px;
+	bottom: -3px;
+	width: 2px;
+	margin-left: -1px;
+	border-radius: 1px;
+}
+
+.barra-limite-atencao {background-color: var(--amarelo-texto);}
+.barra-limite-critico {background-color: var(--vermelho-texto);}
+
+.nivel-texto {
+	min-width: 34px;
+	font-weight: 700;
+	text-align: right;
+}
+
+/* cor do número do nível */
+.nivel-critico {color: var(--vermelho-texto);}
+.nivel-atencao {color: var(--amarelo-texto);}
+.nivel-normal {color: var(--verde);}
+.nivel-semleitura {color: var(--cinzado);}
+
+
+/* --------------------------------------------------------------------------
+   VISÃO DE UM PONTO
+   -------------------------------------------------------------------------- */
+
+/* o diagnóstico usa as cores do alerta, mas em coluna */
+.diagnostico {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.daig-lista {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin-top: 8px;
+	list-style: none;
+}
+
+.diag-item {
+	display: grid;
+	grid-template-columns: 136px minmax(80px, 1fr) 44px minmax(0, 1.4fr);
+	align-items: center;
+	gap: 12px;
+	padding: 7px 12px;
+	font-size: 13px;
+	background-color: #fff;
+	border: 1px solid var(--borda);
+	border-radius: 10px;
+}
+
+.diag-item .barra {
+	width: 100%;
+}
+
+.diag-tipo {
+	font-weight: 700;
+}
+
+.diag-nivel {
+	font-size: 15px;
+	font-weight: 800;
+	text-align: right;
+}
+
+.diag-detalhe {
+	overflow: hidden;
+	color: var(--cinzado);
+	font-size: 12.5px;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+/* SELETOR DE PERÍODO DO HISTÓRICO: 24 h | 7 dias | 30 dias | 90 dias */
+.seletor-periodo {
+	display: inline-flex;
+	padding: 3px;
+	background-color: var(--fundo);
+	border: 1px solid var(--borda);
+	border-radius: 10px;
+}
+
+.seletor-priodo button {
+	padding: 4px 10xp;
+	color: var(--cinzado);
+	font-size: 12.5px;
+	font-weight: 700;
+	white-space: nowrap;
+	background: none;
+	border: none;
+	border-radius: 7px;
+	cursor: pointer;
+}
+
+.seletor-periodo button:hover {
+	color: var(--escuro);
+}
+
+.seletor-periodo button.ativo {
+	color: #fff;
+	background-color: var(--escuro);
+}
+
+/* campo de data das leituras do dia */
+.filtro-data {
+	padding: 6px 8px;
+	font-size: 13px;
+	color: var(--escuro);
+	background-color: #fff;
+	border: 1.5px solid var(--borda);
+	border-radius: 9px;
+}
+
+.filtro-data:focus {
+	outline: 2px solid rgba(2, 146, 93, 0.35);
+	border-color: var(--verde);
+}
+
+/* ÚLTIMA COLETA (tabela N:M) */
+.coleta {
+	gap: 2px;
+}
+
+.coleta-data {
+	margin-top: 8px;
+	font-size: clamp(20px, 1.8cqi, 26px);
+	font-weight: 800;
+}
+
+.coleta-itens {
+	margin-top: 10px;
+	list-style: none;
+}
+
+.coleta-itens li {
+	display: flex;
+	justify-content: space-between;
+	padding: 5px 0;
+	font-size: 13.5px;
+	border-bottom: 1px solid var(--borda);
+}
+
+.coleta-nota {
+	margin-top: 8px;
+	color: var(--cinzado);
+	font-size: 12.5px;
+}
+
+.coleta-nota-tarde {
+	color: var(--vermelho-texto);
+	font-weight: 700;
+}
+
+
+/* --------------------------------------------------------------------------
+   RESPONSIVIDADE
+   -------------------------------------------------------------------------- */
+
+/* CELULAR / TELA ESTREITA: a barra lateral vira uma faixa no topo */
+@media screen and (max-width: 900px) {
+	.layout {
+		flex-direction: column;
+	}
+
+	.barra-lateral {
+		width: 100%;
+		height: auto;
+		position: static;
+		overflow: visible;
+		flex-direction: row;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px 16px;
+		padding: 12px clamp(16px, 3vw, 40px);
+		border-right: none;
+		border-bottom: 1px solid var(--borda);
+		box-shadow: 0 6px 20px 0 rgba(16, 41, 30, 0.06);
+	}
+
+	.barra-lateral-menu {
+		flex-direction: row;
+		flex-wrap: wrap;
+		order: 3; /* o menu desce para uma linha própria */
+		width: 100%;
+	}
+
+	.barra-link {
+		padding: 8px 12px;
+		font-size: 14px;
+	}
+
+	.barra-lateral-botoes {
+		flex-direction: row;
+		margin-top: 0;
+	}
+
+	.barra-botao {
+		width: auto;
+		padding: 8px 14px;
+	}
+}
+
+/* JANELA BAIXA (zoom alto, por exemplo): a página volta a rolar */
+@media screen and (max-height: 640px) {
+	.painel {
+		height: auto;
+	}
+
+	.linha-detalhe {
+		grid-auto-rows: 440px;
+	}
+}
+
+/* NOTEBOOK PEQUENO / TABLET: tudo em uma coluna e a página rola */
+@container conteudo (width <980px) {
+	.painel {
+		height: auto;
+	}
+
+	.linha-topo, 
+	.linha-detalhe-geral, 
+	.linha-detalhe-ponto {
+		grid-template-columns: minmax(0, 1fr);
+	} 
+
+	/* os 3 indicadores lado a lado, embaixo do alerta (o duplo mais largo) */
+	.indicadores {
+		display: grid;
+		grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+	}
+
+	.card-tabela {
+		height: 560px; /* altura fixa: a tabela rola por dentro */
+	}
+
+	.linha-detalhe > .card:not(.card-tabela) {
+		height: 360px;
+	}
+}
+
+/* TABELA ESTREITA: some a coluna "Última leitura" (a situação "Sem leitura" continua) */
+@container tabela (width < 820px) {
+	.col-leitura {
+		display: none;
+	}
+
+	.col-ponto {
+		max-width: 190px;
+	}
+
+	.barra {
+		width: 56px;
+	}
+
+	.tabela td,
+	.tabela th button {
+		padding-left: 8px;
+		padding-right: 8px;
+	}
+}
+
+/* CELULAR */
+@container coneteudo (width < 640px) {
+	.alerta {
+		grid-template-columns: minmax(0, 1fr); /* resumo em cima, fila embaixo */
+	}
+
+	.indicadores {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.indicador-citado {
+		white-space: normal; /* no celular a frase do sensor quebra a linha */
+	}
+
+	.fila-item {
+		grid-template-columns: 22px minmax(0,1 fr) auto 10px;
+	}
+
+	.fila-previsao,
+	.fila-bairro,
+	.sensor-num {
+		display: none; /* menos colunas para caber sem rolar para o lado */
+	}
+
+	.filtros,
+	.filtros-busca {
+		width: 100%;
+	}
+
+	.filtro-busca, 
+	.filtro-bairro {
+		flex: 1;
+		min-width: 0;
+	} 
+
+	.col-ponto {
+		max-width: 160px;
+	}
+
+	.painel-topo-info {
+		align-items: flex-start;
+	}
+
+	.diag-item {
+		grid-template-columns: 124px minmax(0, 1fr) 40px;
+	}
+
+	/* no celular o cabeçalho dos cards do ponto pode quebrar a linha */
+	.linha-detalhe-ponto .card-cabecalho {
+		flex-wrap: wrap;
+	}
+
+	.diag-detalhe {
+		grid-column: 1 / -1; /* o detalhe desce para uma linha própria */
+		white-space: normal;
+	}
+}
