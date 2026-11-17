@@ -1,33 +1,38 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 
 <head>
-	<meta charset="utf-8" />
-	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>Dashboard | SmartColeta</title>
 	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
-	<!-- Importando icone da aba do navegador -->
-	<link rel="icon" href="/logos/smartcoleta-logo.svg">
+	<!-- Importando o ícone da aba do navegador-->
+	 <link rel="icon" href="/logos/smartcoletalogo.svg">
 
-	<link rel="preconnect" href="https://fonts.googleapis.com">
-	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap">
-	<link rel="stylesheet" href="/css/dashboard.css">
+	 <link rel="preconnect" href="https://fonts.googleapis.com">
+	 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap">
+	 <link rel="stylesheet" href="/css/dashboard.css">
+
+	 <!-- defer: os scripts rodam depois que o HTML foi lido, nesta ordem.
+	  dados-exemplo.js primeiro (sai quando a dash ler o banco), depois dashboard.js -->
+	  <script src="/js/dashboard/dados-exemplo.js" defer></script>
+	  <script src="/js/dashboard/dashboard.js" defer></script>
 </head>
 
 <body>
 	<div class="layout">
 
 		<aside class="barra-lateral">
-			<div class="barra-lateral-logo">
-				<div class="barra-lateral-logo-marca">
-					<object data="/logos/isologo.svg" class="barra-lateral-logo-icone" type="image/svg+xml"></object>
-				</div>
-				<p class="barra-lateral-logo-nome">Smart<span>Coleta</span></p>
+			<div class="logo-lateral-logo">
+			<div class="logo-lateral-logo-marca">
+				<object data="/logos/isologo.svg" class="logo-lateral-logo-icone" type="image/svg+xml"></object>
+			</div>
+			<p class="logo-lateral-logo-nome">Smart<span>Coleta</span></p>
 			</div>
 
 			<nav class="barra-lateral-menu">
-				<a class="barra-link barra-link-ativo" href="dashboard.html">Dashboard</a>
+				<a class="barra-link barra-link-ativo" href="/dashboard/dashboard.html">Dashboard</a>
 				<a class="barra-link" href="http://localhost:3300/">Compartimentos</a>
 			</nav>
 
@@ -43,192 +48,190 @@
 		<main class="conteudo">
 			<div class="painel">
 
-				<!-- TOPO: título, filtro de visão e horário da última leitura -->
-				<header class="painel-topo">
-					<div class="painel-topo-textos">
-						<button class="botao-voltar hover-escuro" type="button" id="botao-voltar" style="display: none"
-							onclick="abrirVisao(0)">&larr; Visão geral</button>
-						<h1 class="painel-titulo" id="painel-titulo">Monitoramento do Volume das Lixeiras da Cidade</h1>
-						<p class="painel-subtitulo" id="painel-subtitulo">Campo Novo de Rondônia · Saiba quais pontos estão
-							enchendo e colete antes que o lixo transborde</p>
+				<!-- TOPO: título, cidade e hora da última leitura -->
+				 <header class="painel-topo">
+					<div class="painel-topo-texto">
+						<button class="bota-voltar" type="button" id="botao-voltar" hidden onclick="voltarVisaoGeral()">&larr; Visão geral</button>
+						<h1 class="painel-titulo" id="painel-titulo"></h1>
+						<p class="painel-subtitulo" id="painel-subtitulo"></p>
 					</div>
 
-					<div class="painel-topo-filtro">
-						<label class="filtro-rotulo" for="filtro-visao">Visualizar</label>
-						<select class="filtro-visao" id="filtro-visao" onchange="trocarVisao()"></select>
-						<p class="painel-atualizacao">Última leitura em 03/11 às 18:10</p>
+					<div class="painel-topo-info">
+						<p class="painel-atualizacao" id="painel-atualizacao"></p>
+						<!-- Só para os dados de exemplo: some quando a dash ler o banco -->
+						 <label class="cenario" id="cenario-caixa">
+							Dados de exemplo
+							<select id="cenario" onchange="trocarCenario()">
+								<option value="10">10 pontos . 30 compartimentos (POC)</option>
+								<option value="40">40 pontos . 120 compartimentos </option>
+							</select>
+						 </label>
 					</div>
-				</header>
+				 </header>
 
-				<!-- ======================= VISÃO GERAL DA CIDADE ======================= -->
-				<section class="visao visao-geral" id="visao-geral">
-					<div class="linha-resumo">
-						<!-- primeiro card: alerta com os pontos em atenção e crítico (montado pelo script) -->
-						<div class="card alerta" id="alerta">
-							<h2 class="alerta-titulo" id="alerta-titulo"></h2>
-							<p class="alerta-texto" id="alerta-texto"></p>
-							<div class="alerta-lista" id="alerta-lista"></div>
-						</div>
+				 <!-- ======================= VISÃO GERAL DA CIDADE ======================= -->
+				  <section class="visao" id="visao-geral">
 
-						<div class="indicador">
-							<h2 class="indicador-titulo">Compartimentos em nível de atenção</h2>
-							<div class="indicador-linha">
-								<p class="indicador-dado" id="kpi-atencao"></p>
-								<p class="indicador-status" id="kpi-atencao-status"></p>
+					<div class="linha-topo">
+						<!-- ALERTA: a decisão do momento ("onde mando o caminhão?") -->
+						 <div class="card alerta" id="alerta">
+							<div class="alerta-resumo">
+								<p class="alerta-rotulo" id="alerta-rotulo"></p>
+								<p class="alerta-numero" id="alerta-numero"></p>
+								<p class="alerta-titulo" id="alerta-titulo"></p>
+								<p class="alerta-texto" id="alerta-texto"></p>
 							</div>
-							<p class="indicador-descricao" id="kpi-atencao-descricao"></p>
-						</div>
-
-						<div class="indicador">
-							<h2 class="indicador-titulo">Compartimentos em nível crítico</h2>
-							<div class="indicador-linha">
-								<p class="indicador-dado" id="kpi-criticos"></p>
-								<p class="indicador-status" id="kpi-criticos-status"></p>
+							<div class="alerta-fila">
+								<p class="fila-legenda" id="fila-legenda"></p>
+								<!-- um botão por ponto, na ordem de urgência (montado pelo script) -->
+								 <ol class="fila" id="fila"></ol>
+								 <button class="fila-ver-todos" type="button" id="fila-ver-todos" hidden onclick="mostrarPontosEmAlerta()"></button>
 							</div>
-							<p class="indicador-descricao" id="kpi-criticos-descricao"></p>
-						</div>
+						 </div>
 
-						<div class="indicador">
-							<h2 class="indicador-titulo">Sensores ativos</h2>
-							<div class="indicador-linha">
-								<p class="indicador-dado" id="kpi-sensores"></p>
-								<p class="indicador-status" id="kpi-sensores-status"></p>
+						 <!-- INDICADORES: quantidade de SENSORES (= compartimentos) em cada situação.
+						  Cada um cita o sensor mais urgente e tem "Ver todos" (montado pelo script) -->
+						  <div class="indicadores" id="indicadores">
+							<div class="indicador indicador-duplo">
+								<div class="indicador-metade" id="indicador-critico"></div>
+								<div class="indicador-metade" id="atencao"></div>
 							</div>
-							<p class="indicador-descricao" id="kpi-sensores-descricao"></p>
-						</div>
+							<div class="indicador" id="indicador-breve"></div>
+							<div class="indicador" id="indicador-semleitura"></div>
+						  </div>
 					</div>
 
 					<div class="linha-detalhe linha-detalhe-geral">
-						<div class="card">
-							<h2 class="card-titulo">Pontos de coleta</h2>
-							<p class="card-subtitulo">Clique em um ponto para ver o motivo do alerta</p>
-							<!-- uma linha por ponto, montada pelo script -->
-							<ul class="lista-pontos" id="lista-pontos"></ul>
-						</div>
+						<!-- TABELA COM TODOS COMPARTIMENTOS (1 sensor por compartimento) -->
+						 <div class="card card-tabela" id="card-tabela">
+							<div class="card-cabecalho">
+								<h2 class="card-titulo">Todos os compartimentos</h2>
+								<div class="filtros">
+									<input class="filtro-busca" type="search" id="filtro-busca" placeholder="Buscar rua, bairro ou sensor" 
+									aria-label="Buscar rua, bairro ou sensor" oninput="aoBuscar()">
+									<select class="filtro-bairro" id="filtro-bairro" aria-label="Filtrar por bairro" onchange="aoEscolherBairro()"></select>
+								</div>
+							</div>
 
-						<div class="card">
-							<h2 class="card-titulo">Última leitura de cada sensor</h2>
-							<p class="card-subtitulo">Nível de preenchimento dos 3 compartimentos de cada ponto</p>
-							<!-- Gráfico de barras (Chart.js: type 'bar') -->
+							<!-- filtrar por situação, com a quantidade de compartimento em cada uma -->
+							 <div class="chips-linha">
+								<div class="chips" id="tabela-contagem"></div>
+								<p class="tabela-contagem" id="tabela-contagem"></p>
+							 </div>
+
+							 <div class="tabela-rolagem">
+								<table class="tabela">
+									<thead>
+										<tr>
+											<th><button type="button" data-campo="urgencia" onclick="ordenarPor('urgencia')">Situação</button></th>
+											<th><button type="button" data-campo="ponto" onclick="ordenarPor('ponto')">Ponto de coleta</button></th>
+											<th><button type="button" data-campo="compartimento" onclick="ordenarPor('comaprtimento')">Compartimento</button></th>
+											<th><button type="button" data-campo="nivel" onclick="ordenarPor('nivel')">Nível</button></th>
+											<th><button type="button" data-campo="previsão" onclick="ordenarPor('previsao')">Previsão</button></th>
+											<th class="col-leitura"><button type="button" data-campo="leitura" onclick="ordenarPor('leitura')">Última leitura</button></th>
+										</tr>
+									</thead>
+									<tbody id="tabela-corpo"></tbody>
+								</table>
+								<p class="tabela-vazia" id="tabela-vazia" hidden>Nenhum comparimento com esses filtros.</p>
+							 </div>
+						 </div>
+
+						 <!-- GRÁFICO POR BAIRRO: onde estão os pontos em alerta -->
+						  <div class="card">
+							<h2 class="card-titulo">Pontos por bairro</h2>
+							<p class="card-subtitulo">Clique num bairro para filtrar a tabela</p>
 							<div class="grafico">
-								<canvas id="myChartBarras"></canvas>
+								<canvas id="graficoBairros"></canvas>
 							</div>
-						</div>
-
-						<div class="card">
-							<h2 class="card-titulo">Compartimentos por patamar</h2>
-							<p class="card-subtitulo">Conforme os limites de cada compartimento</p>
-							<!-- Gráfico de rosca (Chart.js: type 'doughnut') -->
-							<div class="patamares">
-								<div class="patamares-grafico">
-									<canvas id="myChartRosca"></canvas>
-									<div class="patamares-grafico-centro">
-										<p class="patamares-grafico-total" id="patamares-total">30</p>
-										<p class="patamares-grafico-unidade">compartimentos</p>
-									</div>
-								</div>
-
-								<div class="patamares-lista">
-									<div class="patamar patamar-normal">
-										<span class="patamar-marcador"></span>
-										<p class="patamar-nome">Normal</p>
-										<p class="patamar-quantidade" id="patamar-normal"></p>
-									</div>
-									<div class="patamar patamar-atencao">
-										<span class="patamar-marcador"></span>
-										<p class="patamar-nome">Atenção</p>
-										<p class="patamar-quantidade" id="patamar-atencao"></p>
-									</div>
-									<div class="patamar patamar-critico">
-										<span class="patamar-marcador"></span>
-										<p class="patamar-nome">Crítico</p>
-										<p class="patamar-quantidade" id="patamar-critico"></p>
-									</div>
-								</div>
-							</div>
-						</div>
+						  </div>
 					</div>
-				</section>
+				  </section>
 
-				<!-- ======================= VISÃO DE UM PONTO DE COLETA ======================= -->
-				<section class="visao visao-ponto" id="visao-ponto" style="display: none">
-					<div class="linha-resumo">
-						<!-- diagnóstico: responde "por que este ponto está em alerta?" (montado pelo script) -->
-						<div class="card alerta" id="diagnostico">
-							<h2 class="alerta-titulo" id="diagnostico-titulo"></h2>
-							<p class="alerta-texto" id="diagnostico-texto"></p>
-							<ul class="diagnostico-lista" id="diagnostico-lista"></ul>
-						</div>
+				  <!-- ======================= VISÃO DE UM PONTO DE COLETA ======================= -->
+				   <section class="visao" id="visao-ponto" hidden>
+					<div class="liha-topo">
+						<!-- DIAGNÓSTICO: a decisão para este ponto e o motivo -->
+						 <div class="card alerta diagnóstico" id="diagnostico">
+							<p class="alerta-rotulo" id="diag-rotulo"></p>
+							<h2 class="alerta-titulo" id="diag-titulo"></h2>
+							<p class="alerta-texto" id="diag-texto"></p>
+							<ul class="diag-lista" id="diag-lista"></ul>
+						 </div>
 
-						<div class="indicador">
-							<h2 class="indicador-titulo">Nível médio do ponto</h2>
-							<div class="indicador-linha">
-								<p class="indicador-dado" id="kpi-ponto-media"></p>
-							</div>
-							<p class="indicador-descricao">Média da última leitura dos compartimentos</p>
-						</div>
-
-						<div class="indicador">
-							<h2 class="indicador-titulo">Compartimento mais cheio</h2>
-							<div class="indicador-linha">
-								<p class="indicador-dado" id="kpi-ponto-maximo"></p>
-								<p class="indicador-status" id="kpi-ponto-maximo-status"></p>
-							</div>
-							<p class="indicador-descricao" id="kpi-ponto-maximo-descricao"></p>
-						</div>
-
-						<div class="indicador">
-							<h2 class="indicador-titulo">Última coleta</h2>
-							<div class="indicador-linha">
-								<p class="indicador-dado" id="kpi-ponto-coleta"></p>
-							</div>
-							<p class="indicador-descricao" id="kpi-ponto-coleta-descricao"></p>
-						</div>
+						 <!-- ÚLTIMA COLETA: vem de tabela N:M coleta_compartimento (consulta C4) -->
+						  <div class="card coelta">
+							<h2 class="card-titulo">Última coleta</h2>
+							<p class="coleta-data" id="coleta-data"></p>
+							<p class="card-subtitulo" id="coleta-ha"></p>
+							<ul class="coleta-itens" id="coleta-itens"></ul>
+							<p class="coleta-nota" id="coleta-nota"></p>
+						  </div>
 					</div>
 
 					<div class="linha-detalhe linha-detalhe-ponto">
-						<div class="card">
-							<h2 class="card-titulo">Nível por compartimento</h2>
-							<p class="card-subtitulo">Última leitura, com os limites de atenção e crítico</p>
-							<!-- Gráfico de barras com marcadores de limite (Chart.js: 'bar' + 'line') -->
-							<div class="grafico">
-								<canvas id="myChartCompartimentos"></canvas>
-							</div>
-						</div>
+						<!-- HISTÓRICO: uma linha por compartimento, no período escolhido (consulta C3a a C3D) -->
+						 <div class="card">
+							<div class="card-cabecalho">
+								<div>
+									<h2 class="card-titulo">Histórico por compartimento</h2>
+									<p class="card-subtitulo" id="historico-subtitulo"></p>
+								</div>
+								<div class="seletor-periodo" id="seletor-periodo" role="group" aria-label="Período do histórico"></div>
+								</div>
+								<div class="grafico">
+									<canvas id="graficoHistorico"></canvas>
+								</div>
+						 </div>
 
-						<div class="card">
-							<h2 class="card-titulo">Histórico do ponto nas últimas 24 h</h2>
-							<p class="card-subtitulo">Nível médio e nível do compartimento mais cheio, hora a hora</p>
-							<!-- Gráfico de linha (Chart.js: type 'line') -->
-							<div class="grafico">
-								<canvas id="myChartLinhas"></canvas>
+						 <!-- LEITURAS DO DIA: todas as leituras do ponto na data escolhida (consulta C6) -->
+						  <div class="card">
+							<div class="card-cabecalho">
+								<div>
+									<h2 class="card-titulo">Leituras do dia</h2>
+									<p class="card-subtitulo" id="leituras-contagem"></p>
+								</div>
+								<input class="filtro-data" type="date" id="leituras-data" aria-label="Data das leituras" onchange="aoEscolherData()">
 							</div>
-						</div>
-
-						<div class="card">
-							<h2 class="card-titulo">Leituras recentes</h2>
-							<p class="card-subtitulo">Últimas leituras dos sensores deste ponto</p>
-							<!-- tabela montada pelo script -->
-							<div class="tabela-leituras">
-								<table>
+							<div class="tabela-rolagem" id="leituras-rolagem">
+								<table class="tabela tabela-leituras">
 									<thead>
 										<tr>
 											<th>Horário</th>
 											<th>Compartimento</th>
+											<th>Sensor</th>
 											<th>Distância</th>
 											<th>Nível</th>
 										</tr>
 									</thead>
-									<tbody id="tabela-leituras"></tbody>
+									<tbody id="leituras-corpo"></tbody>
 								</table>
 							</div>
-						</div>
+							<p class="tabela-vazia" id="leituras-vazia" hidden></p>
+						 </div>
 					</div>
-				</section>
+				   </section>
 			</div>
 		</main>
 	</div>
+	
+	<!-- PAINEL "VER TODOS": lista completa de um indicador (montado pelo script).
+	 	 Fica ancorado ao card que abriu; em tela pequena vira um modal -->
+		 <div class="painel-lista-fundo" id="painel-lista-fundo" hidden></div>
+		 <div class="painel-lista" id="painel-lista" role="dialog" aria-labelledby="painel-lista-titulo" hidden>
+			<div class="painel-lista-cabecalho">
+				<h2 class="painel-lista-titulo" id="painel-lista-titulo"></h2>
+				<button class="painel-lista-fechar" type="button" aria-label="Fechar lista" onclick="fecharLista()">&times;</button>
+			</div>
+			<p class="painel-lista-legenda">Mais urgente primeiro · clique num sensor para abrir o ponto</p>
+			<ul class="painel-lista-itens" id="painel-lista-itens"></ul>
+			<div class="painel-lista-rodape">
+				<button class="link" type="button" id="painel-lista-filtrar" onclick="filtrarPelaLista()">Filtrar na tabela</button>
+			</div>
+		 </div>
+</body>
 
+</html>
 
 	<script>
 		// ==================================================================
