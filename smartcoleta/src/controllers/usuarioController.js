@@ -20,7 +20,9 @@ function autenticar(req, res) {
         usuarioModel
           .autenticar(email, senha)
           .then(function (resultadoAutenticar) {
-            console.log(`\nResultados encontrados: ${resultadoAutenticar.length}`);
+            console.log(
+              `\nResultados encontrados: ${resultadoAutenticar.length}`,
+            );
             console.log(`Resultados: ${JSON.stringify(resultadoAutenticar)}`); // transforma JSON em String
 
             if (resultadoAutenticar.length == 1) {
@@ -36,7 +38,9 @@ function autenticar(req, res) {
             } else if (resultadoAutenticar.length == 0) {
               res.status(403).send("Email e/ou senha inválido(s)");
             } else {
-              res.status(403).send("Mais de um usuário com o mesmo login e senha!");
+              res
+                .status(403)
+                .send("Mais de um usuário com o mesmo login e senha!");
             }
           })
           .catch(function (erro) {
@@ -66,18 +70,24 @@ function senhaForte(senha) {
   for (var i = 0; i < senha.length; i++) {
     var letra = senha[i];
 
-    if (letra >= 'A' && letra <= 'Z') {
+    if (letra >= "A" && letra <= "Z") {
       temMaiuscula = true;
-    } else if (letra >= 'a' && letra <= 'z') {
+    } else if (letra >= "a" && letra <= "z") {
       temMinuscula = true;
-    } else if (letra >= '0' && letra <= '9') {
+    } else if (letra >= "0" && letra <= "9") {
       temNumero = true;
     } else if (especiais.includes(letra)) {
       temEspecial = true;
     }
   }
 
-  return senha.length >= 8 && temMaiuscula && temMinuscula && temNumero && temEspecial;
+  return (
+    senha.length >= 8 &&
+    temMaiuscula &&
+    temMinuscula &&
+    temNumero &&
+    temEspecial
+  );
 }
 
 function cadastrar(req, res) {
@@ -95,39 +105,63 @@ function cadastrar(req, res) {
   } else if (codigoAcesso == undefined || codigoAcesso == "") {
     res.status(400).send("Informe o código de acesso da sua prefeitura.");
   } else if (!senhaForte(senha)) {
-    res.status(400).send("A senha deve ter no mínimo 8 caracteres, com letras maiúsculas e minúsculas, números e caracteres especiais.");
+    res
+      .status(400)
+      .send(
+        "A senha deve ter no mínimo 8 caracteres, com letras maiúsculas e minúsculas, números e caracteres especiais.",
+      );
   } else {
-    var idUsuario;
     var falhou = false; // true quando uma validação já respondeu ao cliente
 
-    //o e-mail precisa estar pré-autorizado (existir na tabela usuario)
+    // 1) o código de acesso precisa existir na tabela prefeitura
     usuarioModel
-      .buscarUsuarioPreAutorizado(email)
-      .then(function (usuarios) {
-        if (usuarios.length == 0) {
+      .buscarPrefeituraPorCodigo(codigoAcesso)
+      .then(function (prefeituras) {
+        if (prefeituras.length == 0) {
           falhou = true;
-          res.status(403).send("E-mail não autorizado. Peça à sua prefeitura para cadastrar seu e-mail.");
+          res
+            .status(400)
+            .send(
+              "Código de acesso inválido. Confira o código enviado pela sua prefeitura.",
+            );
           return;
         }
-        if (usuarios[0].senha != null) {
-          falhou = true;
-          res.status(409).send("Este e-mail já foi cadastrado. Faça login.");
-          return;
-        }
-        idUsuario = usuarios[0].idUsuario;
 
-        // o código de acesso precisa existir e ser da mesma prefeitura do e-mail (fkPrefeitura)
+        // 2) o e-mail precisa estar pré-autorizado (existir na tabela usuario)
         return usuarioModel
-          .buscarPrefeituraPorCodigo(codigoAcesso)
-          .then(function (prefeituras) {
-            if (prefeituras.length == 0 || prefeituras[0].idPrefeitura != usuarios[0].fkPrefeitura) {
+          .buscarUsuarioPreAutorizado(email)
+          .then(function (usuarios) {
+            if (usuarios.length == 0) {
               falhou = true;
-              res.status(400).send("Código de acesso inválido. Confira o código enviado pela sua prefeitura.");
+              res
+                .status(403)
+                .send(
+                  "E-mail não autorizado. Peça à sua prefeitura para cadastrar seu e-mail.",
+                );
               return;
             }
 
-            // validado: completa o cadastro com nome e senha
-            return usuarioModel.cadastrar(idUsuario, nome, senha);
+            // o código precisa ser da mesma prefeitura do e-mail (fkPrefeitura)
+            if (usuarios[0].fkPrefeitura != prefeituras[0].idPrefeitura) {
+              falhou = true;
+              res
+                .status(400)
+                .send(
+                  "Código de acesso inválido. Confira o código enviado pela sua prefeitura.",
+                );
+              return;
+            }
+
+            if (usuarios[0].senha != null) {
+              falhou = true;
+              res
+                .status(409)
+                .send("Este e-mail já foi cadastrado. Faça login.");
+              return;
+            }
+
+            // 3) validado: completa o cadastro com nome e senha
+            return usuarioModel.cadastrar(usuarios[0].idUsuario, nome, senha);
           });
       })
       .then(function (resultado) {
