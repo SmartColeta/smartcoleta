@@ -15,6 +15,7 @@ CREATE USER IF NOT EXISTS 'user_data'@'%' IDENTIFIED BY 'Smartcoleta2026#';
 ALTER USER 'user_data'@'%' IDENTIFIED BY 'Smartcoleta2026#';
 GRANT SELECT ON smartcoleta.* TO 'user_data'@'%';
 GRANT INSERT ON smartcoleta.usuario TO 'user_data'@'%';
+GRANT UPDATE (nome, senha) ON smartcoleta.usuario TO 'user_data'@'%';
 
 -- API do Arduino (dat-acqu-ino): grava as leituras dos sensores
 CREATE USER IF NOT EXISTS 'user_insert'@'%' IDENTIFIED BY 'Smartcoleta2026#';

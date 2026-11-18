@@ -186,6 +186,13 @@ INSERT INTO usuario (nome, email, senha, fkPrefeitura)
 SELECT 'Fiscal de Coleta', 'fiscal@smartcoleta.com', 'senha123', idPrefeitura
 FROM prefeitura WHERE codigoAcesso = 'SMCL0001';
 
+-- E-MAIL PRÉ-AUTORIZADO: a linha já nasce com a prefeitura, sem nome e sem senha.
+-- Na tela de cadastro, a API confere e-mail + código de acesso e só então dá UPDATE
+-- de nome e senha. (A prefeitura 3 usa o código SMCL0003.)
+INSERT INTO usuario (email, fkPrefeitura)
+SELECT 'gestor.prefeitura@smartcoleta.com', idPrefeitura
+FROM prefeitura WHERE codigoAcesso = 'SMCL0003';
+
 -- ===================== CONSULTAS =====================
 
 -- Usuários e suas prefeituras

@@ -97,23 +97,52 @@ function cadastrar(req, res) {
   } else if (!senhaForte(senha)) {
     res.status(400).send("A senha deve ter no mínimo 8 caracteres, com letras maiúsculas e minúsculas, números e caracteres especiais.");
   } else {
+    var idUsuario;
+    var falhou = false; // true quando uma validação já respondeu ao cliente
+
+    //o e-mail precisa estar pré-autorizado (existir na tabela usuario)
     usuarioModel
-      .cadastrar(nome, email, senha, codigoAcesso)
+      .buscarUsuarioPreAutorizado(email)
+      .then(function (usuarios) {
+        if (usuarios.length == 0) {
+          falhou = true;
+          res.status(403).send("E-mail não autorizado. Peça à sua prefeitura para cadastrar seu e-mail.");
+          return;
+        }
+        if (usuarios[0].senha != null) {
+          falhou = true;
+          res.status(409).send("Este e-mail já foi cadastrado. Faça login.");
+          return;
+        }
+        idUsuario = usuarios[0].idUsuario;
+
+        // o código de acesso precisa existir e ser da mesma prefeitura do e-mail (fkPrefeitura)
+        return usuarioModel
+          .buscarPrefeituraPorCodigo(codigoAcesso)
+          .then(function (prefeituras) {
+            if (prefeituras.length == 0 || prefeituras[0].idPrefeitura != usuarios[0].fkPrefeitura) {
+              falhou = true;
+              res.status(400).send("Código de acesso inválido. Confira o código enviado pela sua prefeitura.");
+              return;
+            }
+
+            // validado: completa o cadastro com nome e senha
+            return usuarioModel.cadastrar(idUsuario, nome, senha);
+          });
+      })
       .then(function (resultado) {
-        // affectedRows = quantas linhas o INSERT gravou; 0 = código de acesso não existe
+        if (falhou) {
+          return;
+        }
+        // affectedRows = 0: o cadastro foi concluído por outra requisição no meio do caminho
         if (resultado.affectedRows == 0) {
-          res.status(400).send("Código de acesso inválido. Confira o código enviado pela sua prefeitura.");
+          res.status(409).send("Este e-mail já foi cadastrado. Faça login.");
         } else {
           res.json(resultado);
         }
       })
       .catch(function (erro) {
         console.log(erro);
-        // o e-mail é UNIQUE na tabela usuario
-        if (erro.code == "ER_DUP_ENTRY") {
-          res.status(409).send("Este e-mail já está cadastrado.");
-          return;
-        }
         console.log(
           "\nHouve um erro ao realizar o cadastro! Erro: ",
           erro.sqlMessage,
