@@ -1,835 +1,1223 @@
-// ==========================================================================
+// ==================================================================
 // DASHBOARD | SMARTCOLETA
-// Monta as duas visões do dashboard a partir dos dados de dados-mock.js:
-//   - visão geral da cidade: todos os pontos de coleta e o status de cada um
-//   - visão de um ponto: por que ele está em alerta e o histórico dele
-// O filtro "Visualizar" (select) e os botões dos pontos chamam abrirVisao().
-// ==========================================================================
+//
+// Regra de ouro: o CÁLCULO FICA NO BANCO. Nível, situação ("sem leitura"
+// inclusive), velocidade de enchimento, previsão e totais já chegam
+// prontos das views (consultas C1, C3a a C3d, C4, C6, C8 e C9 do script
+// src/database/tabelas_smartcoleta.sql). Este arquivo só EXIBE, FILTRA e
+// ORDENA (a tabela pode ser reordenada por coluna).
+//
+// Hoje os dados vêm de dados-exemplo.js, que imita as mesmas consultas.
+// ==================================================================
 
-// CORES DA IDENTIDADE VISUAL (as mesmas do dashboard.css)
-let CORES = {
-	verde: '#02925D',
-	escuro: '#00472A',
-	lima: '#62C540',
-	cinzado: '#5E7468',
-	amarelo: '#F2B705',
-	vermelho: '#D64545',
-	amareloEscuro: '#8A6700',
-	vermelhoEscuro: '#A82E2E'
+
+// ==================================================================
+// CONFIGURAÇÃO
+// ==================================================================
+let CIDADE = 'Campo Novo de Rondônia';
+let HORAS_EM_BREVE = 6;       // janela do indicador "Próximas 6 h" (a mesma da vw_resumo_prefeitura)
+let MAX_FILA = 5;             // quantos pontos aparecem no card de alerta
+let MAX_NA_ETIQUETA = 3;      // sensores sem leitura listados na etiqueta antes do "+n"
+let DIAS_DE_LEITURAS = 90;    // até quantos dias atrás o card "Leituras do dia" deixa escolher
+
+// a view devolve a situação escrita; a página usa uma chave curta
+let SITUACOES = { 'Critico': 'critico', 'Atencao': 'atencao', 'Sem leitura': 'semleitura', 'Normal': 'normal' };
+let CORES = { critico: '#D64545', atencao: '#F2B705', normal: '#62C540', semleitura: '#9AA9A1' };
+
+// tipos de resíduo: a prioridade vem do banco (tabela tipo_residuo); aqui fica
+// só a cor do gráfico
+let TIPOS_RESIDUO = {
+	'Orgânico': { cor: '#8B5E34' },
+	'Sem distinção': { cor: '#5E6B73' },
+	'Reciclável': { cor: '#2F7BC1' }
 };
 
-let PATAMARES = {
-	normal: { nome: 'Normal', cor: CORES.lima, peso: 0 },
-	atencao: { nome: 'Atenção', cor: CORES.amarelo, peso: 1 },
-	critico: { nome: 'Crítico', cor: CORES.vermelho, peso: 2 }
+// períodos do histórico. A API só aceita estas quatro chaves e escolhe a
+// consulta pela chave (o valor da tela nunca entra no SQL)
+let PERIODOS = {
+	'24h': { consulta: 'C3a', horas: 24 },
+	'7d': { consulta: 'C3b', horas: 7 * 24 },
+	'30d': { consulta: 'C3c', horas: 30 * 24 },
+	'90d': { consulta: 'C3d', horas: 90 * 24 }
 };
 
-// ordem usada nas listas: do pior para o melhor
-let ORDEM_PATAMARES = ['critico', 'atencao', 'normal'];
+// os indicadores ao lado do alerta. "total" vem do resumo da prefeitura (C8);
+// a lista do "Ver todos" vem das linhas da C1, filtradas pelo MESMO critério
+let INDICADORES = {
+	critico: {
+		chips: ['critico'],
+		total: function (r) { return r.compartimentosCriticos; },
+		filtro: function (c) { return c.situacao == 'critico'; }
+	},
+	atencao: {
+		chips: ['atencao'],
+		total: function (r) { return r.compartimentosAtencao; },
+		filtro: function (c) { return c.situacao == 'atencao'; }
+	},
+	breve: {
+		chips: ['breve'],
+		total: function (r) { return r.compartimentosProximas6h; },
+		filtro: function (c) { return c.emBreve; }
+	},
+	semleitura: {
+		chips: ['semleitura'],
+		total: function (r) { return r.sensoresSemLeitura; },
+		filtro: function (c) { return c.situacao == 'semleitura'; }
+	}
+};
 
-let META_CRITICOS_PCT = 10;  // meta: menos de 10% dos compartimentos em crítico
-let META_SENSORES_PCT = 95;  // meta: 95% ou mais dos sensores ativos
-let QTD_LEITURAS_RECENTES = 9;
+let temGraficos = typeof Chart != 'undefined';
 
-// CHART.JS
-Chart.defaults.responsive = true;
-Chart.defaults.maintainAspectRatio = false; // o gráfico ocupa a altura do card (sem rolar a página)
-Chart.defaults.font.family = "'DM Sans', Arial, sans-serif";
-Chart.defaults.color = CORES.cinzado;
+if (temGraficos) {
+	Chart.defaults.responsive = true;
+	Chart.defaults.maintainAspectRatio = false; // o gráfico ocupa a altura do card
+	Chart.defaults.font.family = "'DM Sans', Arial, sans-serif";
+	Chart.defaults.color = '#5E7468';
+}
 
-// gráficos da visão do ponto: criados uma vez e depois só atualizados
-let graficoCompartimentos = null;
+
+// ==================================================================
+// ESTADO DA PÁGINA
+// ==================================================================
+let agora = new Date();     // hora de referência (eixos dos gráficos e limites da data)
+let compartimentos = [];    // um item por compartimento (linhas da C1)
+let pontos = [];            // compartimentos agrupados por ponto de coleta
+let pontosPorId = {};       // pontosPorId[idPonto] = ponto
+let resumo = null;          // totais da prefeitura (C8)
+let linhasBairros = [];     // pontos por bairro e situação (C9)
+let filtro = { busca: '', bairro: '', situacoes: [] };
+let ordem = { campo: 'urgencia', sentido: 1 };
+let periodoHistorico = '24h';
+let pontoAberto = null;     // ponto mostrado na visão do ponto
+let listaAberta = null;     // { chave, botao } do painel "Ver todos" aberto
+let graficoBairros = null;
 let graficoHistorico = null;
 
-// nível de preenchimento
-// ROUND((1 - distanciaCm / alturaCm) * 100, 2)
-function calcularNivel(distanciaCm, alturaCm) {
-	return Math.round((1 - distanciaCm / alturaCm) * 100 * 100) / 100;
+
+// ==================================================================
+// DADOS
+// Cada função devolve as linhas no MESMO formato das consultas do script.
+// Hoje as linhas vêm de obterExemplo() (dados-exemplo.js). Para ligar ao
+// banco, troque o corpo por um fetch() na rota da API, por exemplo:
+//   fetch(`/dashboard/estado/${idPrefeitura}`).then(r => r.json())
+// O resto da página não muda.
+// ==================================================================
+function exemplo() {
+	return obterExemplo(agora, Number(document.getElementById('cenario').value));
 }
 
-// normal abaixo de limiteAtencao, atenção a partir de limiteAtencao,
-// crítico a partir de limiteCritico
-function classificarPatamar(nivel, parametrizacao) {
-	if (nivel >= parametrizacao.limiteCritico) {
-		return 'critico';
-	} else if (nivel >= parametrizacao.limiteAtencao) {
-		return 'atencao';
-	} else {
-		return 'normal';
+// visão geral: C1 (estado de cada compartimento), C8 (resumo) e C9 (bairros)
+function carregarDados() {
+	let ex = exemplo();
+	return { linhasEstado: ex.linhasEstado, resumo: ex.resumo, bairros: ex.bairros };
+}
+
+// visão do ponto: C4 (última coleta)
+function carregarPonto(idPonto) {
+	return { ultimaColeta: exemplo().ultimaColeta(idPonto) };
+}
+
+// C3a a C3d: só aceita as chaves de PERIODOS (a API faz a mesma checagem)
+function carregarHistorico(idPonto, periodo) {
+	if (PERIODOS[periodo] == undefined) {
+		return [];
 	}
+	return exemplo().historico(idPonto, periodo);
 }
 
-function calcularMedia(valores) {
-	let soma = 0;
-	for (let i = 0; i < valores.length; i++) {
-		soma = soma + valores[i];
+// C6: a data precisa estar no formato AAAA-MM-DD (a API faz a mesma checagem)
+function carregarLeiturasDia(idPonto, data) {
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+		return [];
 	}
-	return valores.length > 0 ? soma / valores.length : 0;
+	return exemplo().leiturasDoDia(idPonto, data);
 }
 
-function calcularMaximo(valores) {
-	let maximo = valores[0];
-	for (let i = 1; i < valores.length; i++) {
-		if (valores[i] > maximo) {
-			maximo = valores[i];
+
+// ==================================================================
+// PREPARAR OS DADOS: linhas do banco -> objetos da página (sem contas)
+// ==================================================================
+function prepararDados(dados) {
+	compartimentos = [];
+	pontos = [];
+	pontosPorId = {};
+	resumo = dados.resumo;
+	linhasBairros = dados.bairros;
+
+	for (let i = 0; i < dados.linhasEstado.length; i++) {
+		let linha = dados.linhasEstado[i];
+		let c = {
+			idPonto: linha.idPonto, rua: linha.rua, bairro: linha.bairro,
+			idCompartimento: linha.idCompartimento, tipo: linha.tipoResiduo, prioridade: Number(linha.prioridade),
+			numeroSensor: linha.numeroSensor,
+			limiteAtencao: Number(linha.limiteAtencao), limiteCritico: Number(linha.limiteCritico),
+			dataHora: linha.dataHora ? lerData(linha.dataHora) : null,
+			minutosDesdeLeitura: linha.minutosDesdeLeitura == null ? null : Number(linha.minutosDesdeLeitura),
+			distanciaCm: linha.distanciaCm == null ? null : Number(linha.distanciaCm),
+			nivel: linha.nivelPct == null ? null : Number(linha.nivelPct),
+			situacao: SITUACOES[linha.situacao],
+			peso: Number(linha.pesoSituacao),
+			proximoLimite: linha.proximoLimite,
+			horas: linha.horasProximoLimite == null ? null : Number(linha.horasProximoLimite)
+		};
+		// "Próximas 6 h": o mesmo critério da coluna compartimentosProximas6h da view
+		c.emBreve = c.situacao == 'normal' && c.horas != null && c.horas <= HORAS_EM_BREVE;
+		compartimentos.push(c);
+
+		if (pontosPorId[c.idPonto] == undefined) {
+			pontosPorId[c.idPonto] = { idPonto: c.idPonto, rua: c.rua, bairro: c.bairro, compartimentos: [] };
+			pontos.push(pontosPorId[c.idPonto]);
 		}
-	}
-	return maximo;
-}
-
-function buscarParametrizacao(idParametrizacao) {
-	for (let i = 0; i < parametrizacoesMock.length; i++) {
-		if (parametrizacoesMock[i].idParametrizacao == idParametrizacao) {
-			return parametrizacoesMock[i];
-		}
-	}
-	return null;
-}
-
-function buscarSensor(idCompartimento) {
-	for (let i = 0; i < sensoresMock.length; i++) {
-		if (sensoresMock[i].fkCompartimento == idCompartimento) {
-			return sensoresMock[i];
-		}
-	}
-	return null;
-}
-
-// leituras de um sensor, da mais antiga para a mais nova
-// (a última da lista é a de ORDER BY dataHora DESC LIMIT 1)
-function buscarLeiturasDoSensor(idSensor) {
-	let leituras = [];
-	for (let i = 0; i < leiturasMock.length; i++) {
-		if (leiturasMock[i].fkSensor == idSensor) {
-			leituras.push(leiturasMock[i]);
-		}
-	}
-	return leituras;
-}
-
-// as datas estão no formato 'AAAA-MM-DD HH:MM:SS', então dá para
-// comparar como texto: a maior é a mais recente
-function buscarUltimaColeta(idCompartimento) {
-	let ultima = null;
-	for (let i = 0; i < coletasMock.length; i++) {
-		let coleta = coletasMock[i];
-		if (coleta.fkCompartimento == idCompartimento) {
-			if (ultima == null || coleta.dataHoraColeta > ultima.dataHoraColeta) {
-				ultima = coleta;
-			}
-		}
-	}
-	return ultima;
-}
-
-// junta ponto, compartimentos, limites, sensor e última leitura num objeto só
-function montarPontos() {
-	let pontos = [];
-
-	for (let p = 0; p < pontosMock.length; p++) {
-		let ponto = pontosMock[p];
-		let compartimentos = [];
-		let niveis = [];
-
-		for (let c = 0; c < compartimentosMock.length; c++) {
-			let compartimento = compartimentosMock[c];
-
-			if (compartimento.fkPontoColeta == ponto.idPonto) {
-				let parametrizacao = buscarParametrizacao(compartimento.fkParametrizacao);
-				let sensor = buscarSensor(compartimento.idCompartimento);
-				let leituras = buscarLeiturasDoSensor(sensor.idSensor);
-				let ultimaLeitura = leituras[leituras.length - 1];
-				let nivel = calcularNivel(ultimaLeitura.distanciaCm, compartimento.alturaCm);
-
-				compartimentos.push({
-					idCompartimento: compartimento.idCompartimento,
-					tipoResiduo: compartimento.tipoResiduo,
-					alturaCm: compartimento.alturaCm,
-					parametrizacao: parametrizacao,
-					sensor: sensor,
-					leituras: leituras,
-					ultimaLeitura: ultimaLeitura,
-					nivel: nivel,
-					patamar: classificarPatamar(nivel, parametrizacao),
-					ultimaColeta: buscarUltimaColeta(compartimento.idCompartimento)
-				});
-				niveis.push(nivel);
-			}
-		}
-
-		// o ponto fica no pior patamar entre os seus compartimentos
-		let maisCheio = compartimentos[0];
-		let patamar = 'normal';
-		for (let i = 0; i < compartimentos.length; i++) {
-			if (compartimentos[i].nivel > maisCheio.nivel) {
-				maisCheio = compartimentos[i];
-			}
-			if (PATAMARES[compartimentos[i].patamar].peso > PATAMARES[patamar].peso) {
-				patamar = compartimentos[i].patamar;
-			}
-		}
-
-		pontos.push({
-			idPonto: ponto.idPonto,
-			rua: ponto.rua,
-			bairro: ponto.bairro,
-			compartimentos: compartimentos,
-			patamar: patamar,
-			maisCheio: maisCheio,
-			nivelMedio: calcularMedia(niveis)
-		});
+		pontosPorId[c.idPonto].compartimentos.push(c);
 	}
 
-	return pontos;
-}
-
-// pontos de um patamar, na ordem da lista
-function filtrarPorPatamar(pontos, patamar) {
-	let resultado = [];
+	// "gatilho" = o compartimento mais urgente do ponto, entre os que têm leitura
+	// (igual à vw_ponto_situacao). O ponto assume a situação dele.
 	for (let i = 0; i < pontos.length; i++) {
-		if (pontos[i].patamar == patamar) {
-			resultado.push(pontos[i]);
-		}
+		let ponto = pontos[i];
+		let comLeitura = ponto.compartimentos.filter(function (c) { return c.situacao != 'semleitura'; });
+		let ordenados = (comLeitura.length > 0 ? comLeitura : ponto.compartimentos).slice().sort(compararUrgencia);
+		ponto.gatilho = ordenados[0];
+		ponto.situacao = ordenados[0].situacao;
+		ponto.temSemLeitura = comLeitura.length < ponto.compartimentos.length;
 	}
-	return resultado;
 }
 
-// pior patamar primeiro: crítico, depois atenção, depois normal
-function ordenarPorGravidade(pontos) {
-	let ordenados = [];
-	for (let i = 0; i < ORDEM_PATAMARES.length; i++) {
-		let doPatamar = filtrarPorPatamar(pontos, ORDEM_PATAMARES[i]);
-		for (let j = 0; j < doPatamar.length; j++) {
-			ordenados.push(doPatamar[j]);
-		}
+
+// ==================================================================
+// REGRA DE URGÊNCIA (fila do alerta, tabela, listas e diagnóstico)
+// Compara dois compartimentos nesta ordem:
+//   1. situação e 2. cheio: o pesoSituacao da view já junta as duas
+//      (5 cheio, 4 crítico, 3 atenção, 2 sem leitura, 1 normal)
+//   3. prioridade do tipo: 1 Orgânico, 2 Sem distinção, 3 Reciclável
+//   4. previsão: menos horas até o próximo limite (sem previsão vai para o fim)
+//   5. nível: o mais cheio
+// A prioridade só desempata dentro da mesma situação.
+// ==================================================================
+function compararUrgencia(a, b) {
+	if (a.peso != b.peso) {
+		return b.peso - a.peso;
 	}
-	return ordenados;
+	if (a.prioridade != b.prioridade) {
+		return a.prioridade - b.prioridade;
+	}
+	let horasA = a.horas == null ? Infinity : a.horas;
+	let horasB = b.horas == null ? Infinity : b.horas;
+	if (horasA != horasB) {
+		return horasA - horasB;
+	}
+	return (b.nivel || 0) - (a.nivel || 0);
 }
 
-function buscarPonto(idPonto) {
+// Rode no console do navegador: testarUrgencia()
+// Os casos imitam linhas da view (peso e prioridade como o banco devolve).
+function testarUrgencia() {
+	function linha(tipo, prioridade, situacao, peso, nivel, horas) {
+		return { tipo: tipo, prioridade: prioridade, situacao: situacao, peso: peso, nivel: nivel, horas: horas };
+	}
+	let casos = [
+		{ nome: 'Orgânico crítico 94% x Reciclável crítico 96%', a: linha('Orgânico', 1, 'critico', 4, 94, 2), b: linha('Reciclável', 3, 'critico', 4, 96, 1), primeiro: 'A', motivo: 'prioridade' },
+		{ nome: 'Orgânico atenção 81% x Reciclável crítico 96%', a: linha('Orgânico', 1, 'atencao', 3, 81, 2), b: linha('Reciclável', 3, 'critico', 4, 96, 1), primeiro: 'B', motivo: 'situação' },
+		{ nome: 'Reciclável crítico 100% x Orgânico crítico 90%', a: linha('Reciclável', 3, 'critico', 5, 100, 0), b: linha('Orgânico', 1, 'critico', 4, 90, 3), primeiro: 'A', motivo: 'cheio' },
+		{ nome: 'Sem distinção atenção 72% x Reciclável atenção 80%', a: linha('Sem distinção', 2, 'atencao', 3, 72, 6), b: linha('Reciclável', 3, 'atencao', 3, 80, 4), primeiro: 'A', motivo: 'prioridade' }
+	];
+	let passou = 0;
+	for (let i = 0; i < casos.length; i++) {
+		let caso = casos[i];
+		let resultado = compararUrgencia(caso.a, caso.b) < 0 ? 'A' : 'B';
+		let ok = resultado == caso.primeiro;
+		if (ok) passou++;
+		console.log(`${ok ? '✓' : '✗'} ${caso.nome}: vem primeiro ${resultado} (esperado ${caso.primeiro}, por ${caso.motivo})`);
+	}
+	console.log(`${passou} de ${casos.length} casos passaram`);
+	return passou == casos.length;
+}
+
+
+// ==================================================================
+// FORMATAÇÃO (só texto e HTML; nenhuma regra de negócio)
+// ==================================================================
+function doisDigitos(n) {
+	return n < 10 ? '0' + n : '' + n;
+}
+
+// as datas chegam como ISO (colunas DATETIME) ou 'AAAA-MM-DD HH:MM:SS' (DATE_FORMAT)
+function lerData(valor) {
+	let partes = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/.exec(valor);
+	if (partes) {
+		return new Date(Number(partes[1]), Number(partes[2]) - 1, Number(partes[3]), Number(partes[4]), Number(partes[5]), Number(partes[6]));
+	}
+	return new Date(valor);
+}
+
+function formatarHora(data) {
+	return doisDigitos(data.getHours()) + ':' + doisDigitos(data.getMinutes());
+}
+
+function formatarDia(data) {
+	return doisDigitos(data.getDate()) + '/' + doisDigitos(data.getMonth() + 1);
+}
+
+function formatarDataHora(data) {
+	return formatarDia(data) + ' às ' + formatarHora(data);
+}
+
+// 'AAAA-MM-DD' da data local (valor do <input type="date">)
+function dataParaCampo(data) {
+	return `${data.getFullYear()}-${doisDigitos(data.getMonth() + 1)}-${doisDigitos(data.getDate())}`;
+}
+
+function formatarHaQuanto(minutos) {
+	if (minutos < 1) return 'agora';
+	if (minutos < 60) return `há ${Math.round(minutos)} min`;
+	if (minutos < 48 * 60) return `há ${Math.round(minutos / 60)} h`;
+	return `há ${Math.round(minutos / 1440)} dias`;
+}
+
+function formatarParado(minutos) {
+	if (minutos == null) return 'nunca enviou leitura';
+	if (minutos < 60) return `parado há ${Math.round(minutos)} min`;
+	if (minutos < 48 * 60) return `parado há ${Math.round(minutos / 60)} h`;
+	return `parado há ${Math.round(minutos / 1440)} dias`;
+}
+
+function formatarHoras(horas) {
+	if (horas < 1) return 'menos de 1 h';
+	if (horas < 48) return `~${Math.round(horas)} h`;
+	return `+${Math.floor(horas / 24)} dias`;
+}
+
+function formatarNumero(valor, casas) {
+	return valor.toFixed(casas).replace('.', ',');
+}
+
+// texto da previsão a partir das colunas proximoLimite e horasProximoLimite da view
+function textoPrevisao(c) {
+	if (c.situacao == 'semleitura') return '';
+	if (c.horas == 0) return 'Cheio';
+	if (c.horas == null) return '';
+	return `${c.proximoLimite} em ${formatarHoras(c.horas)}`;
+}
+
+function semAcento(texto) {
+	return String(texto).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+
+function plural(qtd, singular, varios) {
+	return qtd == 1 ? singular : varios;
+}
+
+// "Av. Tancredo Neves, 120" -> "Av. Tancredo Neves" (para as frases curtas dos indicadores)
+function ruaSemNumero(rua) {
+	return rua.split(',')[0];
+}
+
+function mostrar(elemento, visivel) {
+	elemento.toggleAttribute('hidden', !visivel);
+}
+
+function escrever(id, valor) {
+	document.getElementById(id).textContent = valor;
+}
+
+function escreverEm(raiz, seletor, valor) {
+	let itens = raiz.querySelectorAll(seletor);
+	for (let i = 0; i < itens.length; i++) {
+		itens[i].textContent = valor;
+	}
+}
+
+function mostrarEstado(raiz, estado) {
+	let itens = raiz.querySelectorAll('[data-estado]');
+	for (let i = 0; i < itens.length; i++) {
+		mostrar(itens[i], itens[i].dataset.estado.split(' ').indexOf(estado) != -1);
+	}
+}
+
+function aplicarPlural(elemento, qtd) {
+	elemento.textContent = plural(qtd, elemento.dataset.um, elemento.dataset.varios);
+}
+
+function aplicarTitulo(elemento, valores) {
+	elemento.title = elemento.dataset.titulo.replace(/\{(\w+)\}/g, function (trecho, chave) {
+		return valores[chave];
+	});
+}
+
+function clonar(idModelo) {
+	return document.getElementById(idModelo).content.firstElementChild.cloneNode(true);
+}
+
+function preencherTipo(raiz, tipo, prioridade) {
+	raiz.querySelector('.tipo-nome').textContent = tipo;
+	raiz.querySelector('.prioridade-num').textContent = prioridade;
+	let ajuda = document.querySelector(`#ajuda-prioridade [data-prioridade="${prioridade}"]`);
+	raiz.querySelector('.prioridade').title = ajuda ? ajuda.textContent : '';
+}
+
+function preencherBarra(barra, c) {
+	aplicarTitulo(barra, { atencao: c.limiteAtencao, critico: c.limiteCritico });
+	let preenchimento = barra.querySelector('.barra-preenchimento');
+	preenchimento.className = 'barra-preenchimento barra-' + c.situacao;
+	preenchimento.style.width = (c.nivel == null ? 0 : c.nivel) + '%';
+	barra.querySelector('.barra-limite-atencao').style.left = c.limiteAtencao + '%';
+	barra.querySelector('.barra-limite-critico').style.left = c.limiteCritico + '%';
+}
+
+
+// ==================================================================
+// TOPO
+// ==================================================================
+function renderizarTopo() {
+	escreverEm(document, '.texto-cidade', CIDADE);
+	escrever('subtitulo-pontos', resumo.totalPontos);
+	escrever('subtitulo-compartimentos', resumo.totalCompartimentos);
+
+	let temLeitura = Boolean(resumo.ultimaLeitura);
+	mostrar(document.getElementById('atualizacao-com'), temLeitura);
+	mostrar(document.getElementById('atualizacao-sem'), !temLeitura);
+	if (temLeitura) {
+		escrever('atualizacao-hora', formatarHora(lerData(resumo.ultimaLeitura)));
+		escrever('atualizacao-ha', formatarHaQuanto(resumo.minutosDesdeUltimaLeitura));
+	}
+}
+
+
+// ==================================================================
+// ALERTA: quais pontos coletar e em que ordem
+// ==================================================================
+function renderizarAlerta() {
+	// fila = pontos críticos e em atenção, pelo compartimento que disparou (gatilho)
+	let fila = pontos.filter(function (p) { return p.situacao == 'critico' || p.situacao == 'atencao'; });
+	fila.sort(function (a, b) { return compararUrgencia(a.gatilho, b.gatilho); });
+
+	let card = document.getElementById('alerta');
+	let estado = resumo.pontosCriticos > 0 ? 'critico' : resumo.pontosAtencao > 0 ? 'atencao' : 'normal';
+	let total = estado == 'normal' ? 0 : resumo.pontosParaColetar;
+
+	card.className = 'card alerta alerta-' + estado;
+	mostrarEstado(card, estado);
+	mostrar(document.getElementById('alerta-rotulo'), true);
+	escrever('alerta-numero', total);
+	aplicarPlural(document.getElementById('alerta-palavra-coletar'), total);
+	aplicarPlural(document.getElementById('alerta-palavra-atencao'), total);
+	escrever('alerta-qtd-criticos', resumo.pontosCriticos);
+	aplicarPlural(document.getElementById('alerta-palavra-criticos'), resumo.pontosCriticos);
+	escrever('alerta-qtd-atencao', resumo.pontosAtencao);
+	mostrar(document.getElementById('alerta-texto-atencao'), resumo.pontosAtencao > 0);
+
+	// lista: se não há ponto em alerta, mostra os próximos a entrar em atenção
+	let lista = fila;
+	let proximos = fila.length == 0;
+	if (proximos) {
+		lista = pontos.filter(function (p) { return p.gatilho.horas != null; })
+			.sort(function (a, b) { return a.gatilho.horas - b.gatilho.horas; });
+	}
+	mostrar(document.getElementById('fila-legenda-alerta'), !proximos);
+	mostrar(document.getElementById('fila-legenda-proximos'), proximos);
+
+	let ol = document.getElementById('fila');
+	ol.replaceChildren();
+	let qtdNaFila = Math.min(lista.length, MAX_FILA);
+	for (let i = 0; i < qtdNaFila; i++) {
+		let ponto = lista[i];
+		let g = ponto.gatilho;
+		let item = clonar('modelo-fila');
+		let botao = item.querySelector('.fila-item');
+		botao.classList.add('fila-item-' + ponto.situacao);
+		botao.onclick = function () { abrirPonto(ponto.idPonto); };
+		aplicarTitulo(botao, { rua: ponto.rua });
+		item.querySelector('.fila-posicao').textContent = i + 1;
+		item.querySelector('.fila-rua').textContent = ponto.rua;
+		item.querySelector('.fila-bairro').textContent = ponto.bairro;
+		preencherTipo(item.querySelector('.fila-motivo'), g.tipo, g.prioridade);
+		item.querySelector('.fila-nivel').textContent = Math.round(g.nivel);
+		item.querySelector('.fila-previsao').textContent = textoPrevisao(g);
+		ol.appendChild(item);
+	}
+
+	escrever('fila-qtd', fila.length);
+	mostrar(document.getElementById('fila-ver-todos'), fila.length > MAX_FILA);
+}
+
+function mostrarPontosEmAlerta() {
+	filtrarSituacao(['critico', 'atencao']);
+}
+
+
+// ==================================================================
+// INDICADORES (coluna ao lado do alerta) e painel "Ver todos"
+// ==================================================================
+
+// sensores de um indicador, do mais urgente para o menos urgente
+function listaDoIndicador(chave) {
+	return compartimentos.filter(INDICADORES[chave].filtro).sort(compararUrgencia);
+}
+
+// cada indicador tem 3 linhas: título e "Ver todos" | quantidade | sensor citado
+function renderizarIndicador(chave) {
+	let config = INDICADORES[chave];
+	let total = config.total(resumo);
+	let lista = listaDoIndicador(chave);
+	let caixa = document.getElementById('indicador-' + chave);
+
+	let botao = caixa.querySelector('.ver-todos');
+	mostrar(botao, total != 0);
+	botao.setAttribute('aria-expanded', 'false');
+	caixa.querySelector('.ver-todos-qtd').textContent = lista.length;
+	caixa.querySelector('.indicador-dado').textContent = total;
+	aplicarPlural(caixa.querySelector('.indicador-unidade'), total);
+
+	// ao lado do número: a etiqueta vermelha dos sensores parados ("Sem leitura: 127, 185 +2"),
+	// a % com leitura ou a explicação do indicador
+	if (chave == 'semleitura') {
+		mostrar(document.getElementById('semleitura-etiqueta'), total > 0);
+		if (total > 0) {
+			let numeros = lista.slice(0, MAX_NA_ETIQUETA).map(function (c) { return c.numeroSensor; }).join(', ');
+			let resto = lista.length > MAX_NA_ETIQUETA ? ` +${lista.length - MAX_NA_ETIQUETA}` : '';
+			escrever('semleitura-numeros', numeros + resto);
+		}
+		escrever('pct-com-leitura', formatarNumero(Number(resumo.pctComLeitura), 0));
+	}
+
+	let temCitado = total != 0 && lista.length > 0;
+	let citado = caixa.querySelector('.citado');
+	mostrar(citado, temCitado);
+	mostrar(caixa.querySelector('.indicador-vazio'), !temCitado);
+	if (temCitado) {
+		let c = lista[0];
+		let semLeitura = c.situacao == 'semleitura';
+		citado.querySelector('.citado-sensor').textContent = c.numeroSensor;
+		citado.querySelector('.citado-rua').textContent = ruaSemNumero(c.rua);
+		mostrar(citado.querySelector('.citado-leitura'), !semLeitura);
+		mostrar(citado.querySelector('.citado-parado'), semLeitura);
+		if (semLeitura) {
+			citado.querySelector('.citado-parado').textContent = formatarParado(c.minutosDesdeLeitura);
+		} else {
+			citado.querySelector('.citado-tipo').textContent = c.tipo;
+			citado.querySelector('.citado-nivel').textContent = Math.round(c.nivel);
+		}
+		citado.title = citado.innerText;
+	}
+}
+
+function renderizarIndicadores() {
+	fecharLista();
+	let chaves = Object.keys(INDICADORES);
+	for (let i = 0; i < chaves.length; i++) {
+		renderizarIndicador(chaves[i]);
+	}
+}
+
+// abre o painel com a lista completa; clicar de novo no mesmo botão fecha
+function alternarLista(chave, botao) {
+	if (listaAberta && listaAberta.chave == chave) {
+		fecharLista();
+		return;
+	}
+	fecharLista();
+	let lista = listaDoIndicador(chave);
+
+	let ul = document.getElementById('painel-lista-itens');
+	ul.replaceChildren();
+	for (let i = 0; i < lista.length; i++) {
+		let c = lista[i];
+		let item = clonar('modelo-lista-item');
+		let semLeitura = c.situacao == 'semleitura';
+		let previsao = textoPrevisao(c);
+		item.querySelector('.lista-item').onclick = function () { abrirPontoDaLista(c.idPonto); };
+		item.querySelector('.lista-sensor-num').textContent = c.numeroSensor;
+		item.querySelector('.lista-rua').textContent = c.rua;
+		item.querySelector('.lista-bairro').textContent = c.bairro;
+		preencherTipo(item.querySelector('.lista-tipo'), c.tipo, c.prioridade);
+		mostrar(item.querySelector('.lista-parado'), semLeitura);
+		mostrar(item.querySelector('.lista-com-leitura'), !semLeitura);
+		if (semLeitura) {
+			item.querySelector('.lista-parado').textContent = formatarParado(c.minutosDesdeLeitura);
+		} else {
+			item.querySelector('.lista-nivel').classList.add('nivel-' + c.situacao);
+			item.querySelector('.lista-nivel-valor').textContent = Math.round(c.nivel);
+			mostrar(item.querySelector('.lista-previsao-caixa'), previsao != '');
+			item.querySelector('.lista-previsao').textContent = previsao;
+		}
+		ul.appendChild(item);
+	}
+	mostrarEstado(document.getElementById('painel-lista-titulo'), chave);
+	escrever('painel-lista-qtd', lista.length);
+
+	let painel = document.getElementById('painel-lista');
+	painel.hidden = false;
+	listaAberta = { chave: chave, botao: botao };
+	botao.setAttribute('aria-expanded', 'true');
+	posicionarLista(botao);
+	painel.querySelector('.painel-lista-fechar').focus();
+}
+
+// popover ao lado do card (à esquerda, onde há espaço); em tela pequena, modal centralizado
+function posicionarLista(botao) {
+	let painel = document.getElementById('painel-lista');
+	let fundo = document.getElementById('painel-lista-fundo');
+	let modal = window.innerWidth < 720;
+	painel.classList.toggle('painel-lista-modal', modal);
+	fundo.hidden = !modal;
+	if (modal) {
+		painel.style.left = '';
+		painel.style.top = '';
+		return;
+	}
+	let card = botao.closest('.indicador').getBoundingClientRect();
+	let largura = painel.offsetWidth;
+	let altura = painel.offsetHeight;
+	let esquerda = card.left - largura - 12;
+	if (esquerda < 8) {
+		esquerda = Math.max(8, card.right - largura);
+	}
+	let topo = Math.min(Math.max(8, card.top), window.innerHeight - altura - 8);
+	painel.style.left = esquerda + 'px';
+	painel.style.top = Math.max(8, topo) + 'px';
+}
+
+function fecharLista() {
+	if (listaAberta == null) return;
+	let botao = listaAberta.botao;
+	listaAberta = null;
+	document.getElementById('painel-lista').hidden = true;
+	document.getElementById('painel-lista-fundo').hidden = true;
+	if (botao && document.body.contains(botao)) {
+		botao.setAttribute('aria-expanded', 'false');
+		botao.focus();
+	}
+}
+
+function abrirPontoDaLista(idPonto) {
+	fecharLista();
+	abrirPonto(idPonto);
+}
+
+// "Filtrar na tabela": aplica nos chips o mesmo critério da lista
+function filtrarPelaLista() {
+	let chips = INDICADORES[listaAberta.chave].chips;
+	fecharLista();
+	filtrarSituacao(chips);
+}
+
+// o painel fecha com Esc e com clique fora dele
+document.addEventListener('keydown', function (evento) {
+	if (evento.key == 'Escape' && listaAberta) {
+		fecharLista();
+	}
+});
+document.addEventListener('mousedown', function (evento) {
+	if (listaAberta == null) return;
+	let painel = document.getElementById('painel-lista');
+	if (!painel.contains(evento.target) && !listaAberta.botao.contains(evento.target)) {
+		fecharLista();
+	}
+});
+window.addEventListener('resize', function () {
+	if (listaAberta) posicionarLista(listaAberta.botao);
+});
+
+
+// ==================================================================
+// TABELA DE COMPARTIMENTOS: filtros, chips e ordenação
+// ==================================================================
+function renderizarFiltros() {
+	// bairros em ordem alfabética
+	let bairros = [];
 	for (let i = 0; i < pontos.length; i++) {
-		if (pontos[i].idPonto == idPonto) {
-			return pontos[i];
-		}
+		if (bairros.indexOf(pontos[i].bairro) == -1) bairros.push(pontos[i].bairro);
 	}
-	return null;
-}
+	bairros.sort(function (a, b) { return a.localeCompare(b, 'pt-BR'); });
 
-
-// --------------------------------------------------------------------------
-// FORMATAÇÃO
-// --------------------------------------------------------------------------
-
-function formatarPct(valor) {
-	return Math.round(valor) + '%';
-}
-
-// '2026-11-03 18:10:00' vira '18:10'
-function formatarHora(dataHora) {
-	return dataHora.split(' ')[1].slice(0, 5);
-}
-
-// '2026-11-03 18:10:00' vira '03/11'
-function formatarData(dataHora) {
-	let partes = dataHora.split(' ')[0].split('-');
-	return partes[2] + '/' + partes[1];
-}
-
-function formatarDataHora(dataHora) {
-	return formatarData(dataHora) + ' às ' + formatarHora(dataHora);
-}
-
-function nomeDoPonto(ponto) {
-	return `${ponto.rua} · ${ponto.bairro}`;
-}
-
-// selo em formato de pílula (mesmo estilo dos indicadores)
-function preencherSelo(idElemento, texto, patamar) {
-	let selo = document.getElementById(idElemento);
-	selo.innerHTML = texto;
-	selo.className = `indicador-status indicador-status-${patamar}`;
-}
-
-
-// --------------------------------------------------------------------------
-// TOPO: filtro de visão e horário da última leitura
-// --------------------------------------------------------------------------
-
-// opções do select: visão geral e os pontos agrupados por patamar
-function montarFiltro(pontos) {
-	let filtro = document.getElementById('filtro-visao');
-	filtro.innerHTML = `<option value="0">Visão geral da cidade</option>`;
-
-	for (let i = 0; i < ORDEM_PATAMARES.length; i++) {
-		let patamar = ORDEM_PATAMARES[i];
-		let doPatamar = filtrarPorPatamar(pontos, patamar);
-
-		if (doPatamar.length > 0) {
-			let opcoes = '';
-			for (let j = 0; j < doPatamar.length; j++) {
-				opcoes += `<option value="${doPatamar[j].idPonto}">${nomeDoPonto(doPatamar[j])}</option>`;
-			}
-			filtro.innerHTML += `<optgroup label="${PATAMARES[patamar].nome}">${opcoes}</optgroup>`;
-		}
+	let select = document.getElementById('filtro-bairro');
+	while (select.options.length > 1) {
+		select.remove(1);
 	}
+	for (let i = 0; i < bairros.length; i++) {
+		select.add(new Option(bairros[i], bairros[i]));
+	}
+	select.value = filtro.bairro;
 }
 
-// chamada pelo onchange do select
-function trocarVisao() {
-	let idPonto = Number(document.getElementById('filtro-visao').value);
-	abrirVisao(idPonto);
+function passaNaSituacao(c, situacao) {
+	if (situacao == 'breve') return c.emBreve;
+	return c.situacao == situacao;
 }
 
-function mostrarUltimaAtualizacao() {
-	let maisRecente = leiturasMock[0].dataHora;
-	for (let i = 0; i < leiturasMock.length; i++) {
-		if (leiturasMock[i].dataHora > maisRecente) {
-			maisRecente = leiturasMock[i].dataHora;
-		}
+function passaNosFiltros(c, ignorarSituacao) {
+	if (filtro.bairro != '' && c.bairro != filtro.bairro) return false;
+	if (filtro.busca != '') {
+		let texto = semAcento(`${c.rua} ${c.bairro} ${c.tipo} ${c.numeroSensor}`);
+		if (texto.indexOf(semAcento(filtro.busca)) == -1) return false;
 	}
-	document.getElementById('painel-atualizacao').innerHTML = `Última leitura em ${formatarDataHora(maisRecente)}`;
+	if (!ignorarSituacao && filtro.situacoes.length > 0) {
+		let passa = false;
+		for (let i = 0; i < filtro.situacoes.length; i++) {
+			if (passaNaSituacao(c, filtro.situacoes[i])) passa = true;
+		}
+		if (!passa) return false;
+	}
+	return true;
 }
 
-
-// --------------------------------------------------------------------------
-// VISÃO GERAL DA CIDADE (montada uma vez, quando a página abre)
-// --------------------------------------------------------------------------
-
-function renderizarVisaoGeral(pontos) {
-	let compartimentos = [];
-	for (let i = 0; i < pontos.length; i++) {
-		for (let j = 0; j < pontos[i].compartimentos.length; j++) {
-			compartimentos.push(pontos[i].compartimentos[j]);
-		}
-	}
-
-	renderizarAlerta(pontos);
-	renderizarIndicadoresGerais(compartimentos);
-	renderizarListaPontos(pontos);
-	renderizarGraficoSensores(pontos);
-	renderizarGraficoPatamares(compartimentos);
-}
-
-// PRIMEIRO CARD: alerta com os pontos em atenção e em crítico
-function renderizarAlerta(pontos) {
-	let criticos = filtrarPorPatamar(pontos, 'critico');
-	let atencao = filtrarPorPatamar(pontos, 'atencao');
-
-	let titulo = document.getElementById('alerta-titulo');
-	let texto = document.getElementById('alerta-texto');
-	let lista = document.getElementById('alerta-lista');
-
-	// o card pega a cor do pior patamar
-	let piorPatamar = 'normal';
-	if (criticos.length > 0) {
-		piorPatamar = 'critico';
-	} else if (atencao.length > 0) {
-		piorPatamar = 'atencao';
-	}
-	document.getElementById('alerta').className = `card alerta alerta-${piorPatamar}`;
-
-	if (piorPatamar == 'normal') {
-		titulo.innerHTML = 'Nenhum ponto de coleta em alerta';
-		texto.innerHTML = 'Todos os compartimentos estão abaixo do limite de atenção.';
-	} else {
-		let frase = '';
-		if (criticos.length > 0) {
-			frase = criticos.length == 1 ? '1 ponto em nível crítico' : `${criticos.length} pontos em nível crítico`;
-		}
-		if (atencao.length > 0) {
-			frase += frase == '' ? `${atencao.length} em atenção` : ` e ${atencao.length} em atenção`;
-		}
-		titulo.innerHTML = frase;
-		texto.innerHTML = 'Priorize a coleta nestes pontos. Clique para ver o motivo:';
-	}
-
-	// um botão por ponto em alerta (crítico primeiro)
-	let emAlerta = ordenarPorGravidade(pontos);
-	lista.innerHTML = '';
-	for (let i = 0; i < emAlerta.length; i++) {
-		let ponto = emAlerta[i];
-		if (ponto.patamar != 'normal') {
-			lista.innerHTML += `
-				<button class="alerta-item alerta-item-${ponto.patamar}" type="button" onclick="abrirVisao(${ponto.idPonto})"
-					title="${nomeDoPonto(ponto)}: ${ponto.maisCheio.tipoResiduo} em ${formatarPct(ponto.maisCheio.nivel)}">
-					<span class="alerta-item-rua">${ponto.rua}</span>
-					<span class="alerta-item-nivel">${formatarPct(ponto.maisCheio.nivel)}</span>
-				</button>`;
-		}
-	}
-}
-
-function renderizarIndicadoresGerais(compartimentos) {
-	let niveis = [];
-	let qtdCriticos = 0;
-	let qtdAtivos = 0;
+function renderizarChips() {
+	// as quantidades respeitam a busca e o bairro, para o gestor ver o efeito do filtro
+	let qtd = { todos: 0, critico: 0, atencao: 0, breve: 0, semleitura: 0, normal: 0 };
 	for (let i = 0; i < compartimentos.length; i++) {
-		niveis.push(compartimentos[i].nivel);
-		if (compartimentos[i].patamar == 'critico') {
-			qtdCriticos++;
-		}
-		if (compartimentos[i].sensor.statuss == 1) {
-			qtdAtivos++;
-		}
+		let c = compartimentos[i];
+		if (!passaNosFiltros(c, true)) continue;
+		qtd.todos++;
+		qtd[c.situacao]++;
+		if (c.emBreve) qtd.breve++;
 	}
-
-	// ocupação média: média da última leitura de cada compartimento
-	document.getElementById('kpi-ocupacao').innerHTML = formatarPct(calcularMedia(niveis));
-	document.getElementById('kpi-ocupacao-descricao').innerHTML =
-		`Última leitura de ${compartimentos.length} compartimentos`;
-
-	// compartimentos em crítico, comparados com a meta
-	let pctCriticos = qtdCriticos / compartimentos.length * 100;
-	let criticoNaMeta = pctCriticos < META_CRITICOS_PCT;
-	document.getElementById('kpi-criticos').innerHTML = qtdCriticos;
-	preencherSelo('kpi-criticos-status',
-		criticoNaMeta ? 'Dentro da meta' : 'Acima da meta', criticoNaMeta ? 'normal' : 'critico');
-	document.getElementById('kpi-criticos-descricao').innerHTML =
-		`${formatarPct(pctCriticos)} do total, meta abaixo de ${META_CRITICOS_PCT}%`;
-
-	// sensores ativos (statuss = 1), comparados com a meta
-	let pctAtivos = qtdAtivos / compartimentos.length * 100;
-	let sensoresNaMeta = pctAtivos >= META_SENSORES_PCT;
-	document.getElementById('kpi-sensores').innerHTML = formatarPct(pctAtivos);
-	preencherSelo('kpi-sensores-status',
-		sensoresNaMeta ? 'Dentro da meta' : 'Abaixo da meta', sensoresNaMeta ? 'normal' : 'critico');
-	document.getElementById('kpi-sensores-descricao').innerHTML =
-		`${qtdAtivos} de ${compartimentos.length} ativos, meta de ${META_SENSORES_PCT}% ou mais`;
-}
-
-// lista com todos os pontos e o status de cada um
-function renderizarListaPontos(pontos) {
-	let ordenados = ordenarPorGravidade(pontos);
-	let lista = document.getElementById('lista-pontos');
-	lista.innerHTML = '';
-
-	for (let i = 0; i < ordenados.length; i++) {
-		let ponto = ordenados[i];
-		lista.innerHTML += `
-			<li>
-				<button class="ponto ponto-${ponto.patamar}" type="button" onclick="abrirVisao(${ponto.idPonto})">
-					<span class="ponto-marcador"></span>
-					<span class="ponto-nome"><span class="ponto-rua">${ponto.rua}</span><span class="ponto-bairro">${ponto.bairro}</span></span>
-					<span class="ponto-nivel">${formatarPct(ponto.maisCheio.nivel)}</span>
-					<span class="ponto-status">${PATAMARES[ponto.patamar].nome}</span>
-				</button>
-			</li>`;
+	let botoes = document.querySelectorAll('#chips .chip');
+	for (let i = 0; i < botoes.length; i++) {
+		let s = botoes[i].dataset.situacao;
+		let ativo = s == ''
+			? filtro.situacoes.length == 0
+			: filtro.situacoes.length == 1 && filtro.situacoes[0] == s;
+		botoes[i].querySelector('span').textContent = s == '' ? qtd.todos : qtd[s];
+		botoes[i].classList.toggle('chip-ativo', ativo);
 	}
 }
 
-// GRÁFICO DE BARRAS: última leitura de cada sensor, agrupada por ponto
-// (uma série por tipo de resíduo; cada barra tem a cor do seu patamar)
-function renderizarGraficoSensores(pontos) {
-	let ordenados = ordenarPorGravidade(pontos);
-
-	// nome curto do ponto embaixo das barras ("Av. Brasil" vira "Brasil")
-	let rotulos = [];
-	for (let i = 0; i < ordenados.length; i++) {
-		rotulos.push(ordenados[i].rua.replace('Av. ', '').replace('Rua ', ''));
+// comparação "natural" de cada coluna; o sentido inverte ao clicar de novo
+function compararPorCampo(a, b) {
+	let campo = ordem.campo;
+	let r = 0;
+	if (campo == 'urgencia') {
+		r = compararUrgencia(a, b);
+	} else if (campo == 'ponto') {
+		r = a.rua.localeCompare(b.rua, 'pt-BR') || a.idCompartimento - b.idCompartimento;
+	} else if (campo == 'compartimento') {
+		r = (a.prioridade - b.prioridade) || compararUrgencia(a, b);
+	} else if (campo == 'nivel') {
+		r = (b.nivel || 0) - (a.nivel || 0);
+	} else if (campo == 'previsao') {
+		r = (a.horas == null ? Infinity : a.horas) - (b.horas == null ? Infinity : b.horas);
+	} else if (campo == 'leitura') {
+		r = (b.minutosDesdeLeitura == null ? Infinity : b.minutosDesdeLeitura) - (a.minutosDesdeLeitura == null ? Infinity : a.minutosDesdeLeitura); // mais antiga primeiro
 	}
+	if (isNaN(r)) r = 0;
+	return r * ordem.sentido;
+}
 
-	let series = [];
-	for (let c = 0; c < ordenados[0].compartimentos.length; c++) {
-		let niveis = [];
-		let cores = [];
-		for (let i = 0; i < ordenados.length; i++) {
-			niveis.push(ordenados[i].compartimentos[c].nivel);
-			cores.push(PATAMARES[ordenados[i].compartimentos[c].patamar].cor);
+function renderizarTabela() {
+	let visiveis = compartimentos.filter(function (c) { return passaNosFiltros(c, false); });
+	visiveis.sort(compararPorCampo);
+
+	let corpo = document.getElementById('tabela-corpo');
+	corpo.replaceChildren();
+	for (let i = 0; i < visiveis.length; i++) {
+		let c = visiveis[i];
+		let linha = clonar('modelo-linha-tabela');
+		aplicarTitulo(linha, { rua: c.rua });
+		linha.onclick = function () { abrirPonto(c.idPonto); };
+		linha.onkeydown = function (evento) {
+			if (evento.key == 'Enter') abrirPonto(c.idPonto);
+		};
+		let selo = linha.querySelector('.situacao');
+		selo.classList.add('situacao-' + c.situacao);
+		mostrarEstado(selo, c.situacao);
+		linha.querySelector('.ponto-rua').textContent = c.rua;
+		linha.querySelector('.ponto-bairro').textContent = c.bairro;
+		preencherTipo(linha, c.tipo, c.prioridade);
+		linha.querySelector('.sensor-num-valor').textContent = c.numeroSensor;
+		preencherBarra(linha.querySelector('.barra'), c);
+		linha.querySelector('.nivel-texto').textContent = c.nivel == null ? '—' : Math.round(c.nivel) + '%';
+		linha.querySelector('.col-previsao').textContent = textoPrevisao(c) || '—';
+		mostrar(linha.querySelector('.leitura-ha'), c.dataHora != null);
+		mostrar(linha.querySelector('.leitura-nunca'), c.dataHora == null);
+		if (c.dataHora) {
+			linha.querySelector('.leitura-ha').textContent = formatarHaQuanto(c.minutosDesdeLeitura);
 		}
-		series.push({
-			label: ordenados[0].compartimentos[c].tipoResiduo,
-			data: niveis,
-			backgroundColor: cores,
-			borderRadius: 4,
-			categoryPercentage: 0.8,
-			barPercentage: 0.9
-		});
+		corpo.appendChild(linha);
 	}
+	document.getElementById('tabela-vazia').hidden = visiveis.length > 0;
 
-	new Chart(document.getElementById('grafico-sensores'), {
-		type: 'bar',
-		data: {
-			labels: rotulos,
-			datasets: series
-		},
-		options: {
-			plugins: {
-				legend: { display: false } // as cores são de patamar, explicadas no card ao lado
-			},
-			scales: {
-				y: {
-					beginAtZero: true, // começa o resultado no 0
-					max: 100, // tamanho máximo é 100
-					ticks: { callback: (valor) => valor + '%' } // cada degrau formatado com %
+	let completa = visiveis.length == compartimentos.length;
+	mostrar(document.getElementById('contagem-completa'), completa);
+	mostrar(document.getElementById('contagem-filtrada'), !completa);
+	escrever('contagem-total', compartimentos.length);
+	escrever('contagem-visiveis', visiveis.length);
+	escrever('contagem-total-filtro', compartimentos.length);
+
+	// seta no cabeçalho da coluna ordenada
+	let botoes = document.querySelectorAll('.card-tabela th button');
+	for (let i = 0; i < botoes.length; i++) {
+		let b = botoes[i];
+		b.className = b.dataset.campo == ordem.campo ? (ordem.sentido == 1 ? 'ordenado' : 'ordenado invertido') : '';
+	}
+}
+
+function atualizarTabela() {
+	renderizarChips();
+	renderizarTabela();
+}
+
+function filtrarSituacao(situacoes) {
+	filtro.situacoes = situacoes;
+	atualizarTabela();
+	document.getElementById('card-tabela').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function aoBuscar() {
+	filtro.busca = document.getElementById('filtro-busca').value.trim();
+	atualizarTabela();
+}
+
+function aoEscolherBairro() {
+	filtro.bairro = document.getElementById('filtro-bairro').value;
+	atualizarTabela();
+	atualizarGraficoBairros();
+}
+
+function limparFiltros() {
+	filtro = { busca: '', bairro: '', situacoes: [] };
+	document.getElementById('filtro-busca').value = '';
+	document.getElementById('filtro-bairro').value = '';
+	atualizarTabela();
+	atualizarGraficoBairros();
+}
+
+function ordenarPor(campo) {
+	if (ordem.campo == campo) {
+		ordem.sentido = -ordem.sentido;
+	} else {
+		ordem = { campo: campo, sentido: 1 };
+	}
+	renderizarTabela();
+}
+
+
+// ==================================================================
+// GRÁFICO: PONTOS POR BAIRRO (barras horizontais empilhadas, consulta C9)
+// ==================================================================
+function atualizarGraficoBairros() {
+	if (!temGraficos) return;
+	// as linhas da C9 já vêm na ordem: mais críticos e em atenção primeiro
+	let nomes = linhasBairros.map(function (b) { return b.bairro; });
+
+	// o bairro filtrado fica destacado; os outros, mais claros
+	function cor(base, nome) {
+		return filtro.bairro == '' || filtro.bairro == nome ? base : base + '55';
+	}
+	let dados = {
+		labels: nomes,
+		datasets: [
+			{ label: 'Crítico', corBase: CORES.critico, data: linhasBairros.map(function (b) { return Number(b.pontosCriticos); }), backgroundColor: nomes.map(function (n) { return cor(CORES.critico, n); }) },
+			{ label: 'Atenção', corBase: CORES.atencao, data: linhasBairros.map(function (b) { return Number(b.pontosAtencao); }), backgroundColor: nomes.map(function (n) { return cor(CORES.atencao, n); }) },
+			{ label: 'Normal', corBase: '#B9E3A8', data: linhasBairros.map(function (b) { return Number(b.pontosNormais); }), backgroundColor: nomes.map(function (n) { return cor('#B9E3A8', n); }) }
+		]
+	};
+
+	if (graficoBairros == null) {
+		graficoBairros = new Chart(document.getElementById('graficoBairros'), {
+			type: 'bar',
+			data: dados,
+			options: {
+				indexAxis: 'y', // barras deitadas: nomes de bairro longos cabem
+				datasets: { bar: { borderRadius: 3, maxBarThickness: 22, borderSkipped: false, borderWidth: 1, borderColor: '#fff' } },
+				plugins: {
+					legend: {
+						position: 'bottom',
+						labels: {
+							boxWidth: 10, boxHeight: 10, font: { size: 11 },
+							// a legenda usa a cor cheia, mesmo com um bairro filtrado (barras claras)
+							generateLabels: function (chart) {
+								return chart.data.datasets.map(function (d, i) {
+									return { text: d.label, fillStyle: d.corBase, strokeStyle: d.corBase, lineWidth: 0, hidden: !chart.isDatasetVisible(i), datasetIndex: i, fontColor: '#5E7468' };
+								});
+							}
+						}
+					},
+					tooltip: { callbacks: { label: function (ctx) { return ` ${ctx.dataset.label}: ${ctx.raw} ${plural(ctx.raw, 'ponto', 'pontos')}`; } } }
 				},
-				x: {
-					grid: { display: false },
-					ticks: { autoSkip: false, maxRotation: 45, font: { size: 11 } }
+				scales: {
+					x: { stacked: true, beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#EEF3F0' } },
+					y: { stacked: true, grid: { display: false }, ticks: { autoSkip: false, font: { size: 11 } } }
+				},
+				onClick: function (evento, itens) {
+					if (itens.length == 0) return;
+					let nome = linhasBairros[itens[0].index].bairro;
+					filtro.bairro = filtro.bairro == nome ? '' : nome; // clicar de novo tira o filtro
+					document.getElementById('filtro-bairro').value = filtro.bairro;
+					atualizarTabela();
+					atualizarGraficoBairros();
+				},
+				onHover: function (evento, itens) {
+					evento.native.target.style.cursor = itens.length > 0 ? 'pointer' : 'default';
 				}
 			}
-		}
-	});
-}
-
-// GRÁFICO DE ROSCA: compartimentos por patamar
-function renderizarGraficoPatamares(compartimentos) {
-	let qtdNormal = 0;
-	let qtdAtencao = 0;
-	let qtdCritico = 0;
-	for (let i = 0; i < compartimentos.length; i++) {
-		if (compartimentos[i].patamar == 'critico') {
-			qtdCritico++;
-		} else if (compartimentos[i].patamar == 'atencao') {
-			qtdAtencao++;
-		} else {
-			qtdNormal++;
-		}
+		});
+	} else {
+		graficoBairros.data = dados;
+		graficoBairros.update();
 	}
-
-	document.getElementById('patamares-total').innerHTML = compartimentos.length;
-	document.getElementById('patamar-normal').innerHTML = qtdNormal;
-	document.getElementById('patamar-atencao').innerHTML = qtdAtencao;
-	document.getElementById('patamar-critico').innerHTML = qtdCritico;
-
-	new Chart(document.getElementById('grafico-patamares'), {
-		type: 'doughnut',
-		data: {
-			labels: ['Normal', 'Atenção', 'Crítico'],
-			datasets: [{
-				data: [qtdNormal, qtdAtencao, qtdCritico],
-				backgroundColor: [CORES.lima, CORES.amarelo, CORES.vermelho],
-				borderColor: '#fff',
-				borderWidth: 3
-			}]
-		},
-		options: {
-			cutout: '72%',
-			plugins: { legend: { display: false } } // a legenda já está no HTML
-		}
-	});
 }
 
 
-// --------------------------------------------------------------------------
-// VISÃO DE UM PONTO DE COLETA
-// --------------------------------------------------------------------------
+// ==================================================================
+// VISÃO DE UM PONTO
+// ==================================================================
+function abrirPonto(idPonto) {
+	let ponto = pontosPorId[idPonto];
+	if (ponto == undefined) return;
+	pontoAberto = ponto;
+	fecharLista();
 
-function renderizarVisaoPonto(ponto) {
-	document.getElementById('painel-titulo').innerHTML = nomeDoPonto(ponto);
-	document.getElementById('painel-subtitulo').innerHTML =
-		`Ponto de coleta ${ponto.idPonto} · ${ponto.compartimentos.length} compartimentos · ${prefeituraMock.cidade}`;
+	let dadosPonto = carregarPonto(idPonto);
+
+	document.getElementById('visao-geral').hidden = true;
+	document.getElementById('visao-ponto').hidden = false;
+	document.getElementById('botao-voltar').hidden = false;
+	document.getElementById('titulo-geral').hidden = true;
+	document.getElementById('titulo-ponto').hidden = false;
+	document.getElementById('subtitulo-geral').hidden = true;
+	document.getElementById('subtitulo-ponto').hidden = false;
+	escrever('titulo-rua', ponto.rua);
+	escrever('titulo-bairro', ponto.bairro);
+	escrever('subtitulo-id-ponto', ponto.idPonto);
+	escrever('subtitulo-qtd-ponto', ponto.compartimentos.length);
+	window.scrollTo(0, 0);
 
 	renderizarDiagnostico(ponto);
-	renderizarIndicadoresPonto(ponto);
-	renderizarGraficoCompartimentos(ponto);
-	renderizarGraficoHistorico(ponto);
-	renderizarLeiturasRecentes(ponto);
+	renderizarUltimaColeta(dadosPonto.ultimaColeta);
+	renderizarSeletorPeriodo();
+	renderizarHistorico();
+	prepararCampoData();
+	renderizarLeiturasDia();
 }
 
-// DIAGNÓSTICO: por que este ponto está em alerta?
+function voltarVisaoGeral() {
+	pontoAberto = null;
+	document.getElementById('visao-ponto').hidden = true;
+	document.getElementById('visao-geral').hidden = false;
+	document.getElementById('botao-voltar').hidden = true;
+	document.getElementById('titulo-geral').hidden = false;
+	document.getElementById('titulo-ponto').hidden = true;
+	document.getElementById('subtitulo-geral').hidden = false;
+	document.getElementById('subtitulo-ponto').hidden = true;
+	renderizarTopo();
+}
+
+// DIAGNÓSTICO: o que fazer com este ponto e por quê
 function renderizarDiagnostico(ponto) {
-	document.getElementById('diagnostico').className = `card alerta alerta-${ponto.patamar}`;
+	let card = document.getElementById('diagnostico');
+	let g = ponto.gatilho;
+	let previsao = textoPrevisao(g);
 
-	let lista = document.getElementById('diagnostico-lista');
-	lista.innerHTML = '';
-	let qtdAcimaDoLimite = 0;
+	card.className = 'card alerta diagnostico alerta-' + ponto.situacao;
+	mostrarEstado(card, ponto.situacao);
+	escreverEm(card, '.diag-gatilho-tipo', g.tipo);
+	escreverEm(card, '.diag-gatilho-nivel', g.nivel == null ? '' : Math.round(g.nivel));
+	escreverEm(card, '.diag-limite-critico', g.limiteCritico);
+	escreverEm(card, '.diag-limite-atencao', g.limiteAtencao);
+	escreverEm(card, '.diag-previsao', previsao);
+	escreverEm(card, '.diag-qtd', ponto.compartimentos.length);
+	mostrar(card.querySelector('.diag-fica'), previsao != '' && previsao != 'Cheio');
+	mostrar(card.querySelector('.diag-chega'), previsao != '');
+	mostrar(card.querySelector('.diag-com-previsao'), previsao != '');
+	mostrar(card.querySelector('.diag-sem-previsao'), previsao == '');
+	mostrar(document.getElementById('diag-aviso-semleitura'), ponto.temSemLeitura && ponto.situacao != 'semleitura');
 
-	// compartimentos que passaram do limite: crítico primeiro, depois atenção
-	for (let p = 0; p < ORDEM_PATAMARES.length - 1; p++) {
-		for (let i = 0; i < ponto.compartimentos.length; i++) {
-			let c = ponto.compartimentos[i];
-			if (c.patamar == ORDEM_PATAMARES[p]) {
-				let limite = c.patamar == 'critico' ? c.parametrizacao.limiteCritico : c.parametrizacao.limiteAtencao;
-				lista.innerHTML += `
-					<li class="diagnostico-item diagnostico-item-${c.patamar}">
-						<strong>${c.tipoResiduo} em ${formatarPct(c.nivel)}</strong>
-						<span>${PATAMARES[c.patamar].nome} a partir de ${limite}% · lido às ${formatarHora(c.ultimaLeitura.dataHora)}</span>
-					</li>`;
-				qtdAcimaDoLimite++;
-			}
-		}
-	}
-
-	// sensor parado também explica um alerta (o nível mostrado pode estar velho)
-	for (let i = 0; i < ponto.compartimentos.length; i++) {
-		let c = ponto.compartimentos[i];
-		if (c.sensor.statuss != 1) {
-			lista.innerHTML += `
-				<li class="diagnostico-item diagnostico-item-inativo">
-					<strong>Sensor ${c.sensor.numeroSensor} (${c.tipoResiduo}) inativo</strong>
-					<span>Última leitura em ${formatarDataHora(c.ultimaLeitura.dataHora)}</span>
-				</li>`;
-		}
-	}
-
-	if (qtdAcimaDoLimite == 0) {
-		document.getElementById('diagnostico-titulo').innerHTML = 'Ponto em situação normal';
-		document.getElementById('diagnostico-texto').innerHTML = 'Nenhum compartimento chegou ao limite de atenção.';
-	} else {
-		document.getElementById('diagnostico-titulo').innerHTML =
-			`Por que este ponto está em ${ponto.patamar == 'critico' ? 'nível crítico' : 'atenção'}?`;
-		document.getElementById('diagnostico-texto').innerHTML = qtdAcimaDoLimite == 1
-			? '1 compartimento passou do limite:'
-			: `${qtdAcimaDoLimite} compartimentos passaram do limite:`;
+	// um compartimento por linha, do mais urgente para o menos urgente
+	let lista = ponto.compartimentos.slice().sort(compararUrgencia);
+	let ul = document.getElementById('diag-lista');
+	ul.replaceChildren();
+	for (let i = 0; i < lista.length; i++) {
+		let c = lista[i];
+		let item = clonar('modelo-diag-item');
+		let semLeitura = c.situacao == 'semleitura';
+		let previsaoItem = textoPrevisao(c);
+		preencherTipo(item.querySelector('.diag-tipo'), c.tipo, c.prioridade);
+		preencherBarra(item.querySelector('.barra'), c);
+		let nivel = item.querySelector('.diag-nivel');
+		nivel.classList.add('nivel-' + c.situacao);
+		nivel.textContent = c.nivel == null ? '—' : Math.round(c.nivel) + '%';
+		mostrar(item.querySelector('.diag-detalhe-semleitura'), semLeitura);
+		mostrar(item.querySelector('.diag-detalhe-leitura'), !semLeitura);
+		item.querySelector('.diag-sensor').textContent = c.numeroSensor;
+		item.querySelector('.diag-parado').textContent = formatarParado(c.minutosDesdeLeitura);
+		mostrar(item.querySelector('.diag-previsao-caixa'), previsaoItem != '');
+		item.querySelector('.diag-previsao-item').textContent = previsaoItem;
+		item.querySelector('.diag-lim-atencao').textContent = c.limiteAtencao;
+		item.querySelector('.diag-lim-critico').textContent = c.limiteCritico;
+		ul.appendChild(item);
 	}
 }
 
-function renderizarIndicadoresPonto(ponto) {
-	let maisCheio = ponto.maisCheio;
+// ÚLTIMA COLETA: nível de cada compartimento na hora da coleta (C4, tabela N:M)
+function renderizarUltimaColeta(linhas) {
+	let temColeta = linhas.length > 0;
+	let nota = document.getElementById('coleta-nota');
+	let ul = document.getElementById('coleta-itens');
+	mostrar(document.getElementById('coleta-data'), temColeta);
+	mostrar(document.getElementById('coleta-nenhuma'), !temColeta);
+	mostrar(document.getElementById('coleta-ha-caixa'), temColeta);
+	mostrar(document.getElementById('coleta-sem'), !temColeta);
+	mostrar(nota, temColeta);
+	ul.replaceChildren();
+	if (!temColeta) return;
 
-	document.getElementById('kpi-ponto-media').innerHTML = formatarPct(ponto.nivelMedio);
+	escrever('coleta-data', formatarDataHora(lerData(linhas[0].dataHoraColeta)));
+	escrever('coleta-ha', formatarHaQuanto(Number(linhas[0].minutosDesdeColeta)));
 
-	document.getElementById('kpi-ponto-maximo').innerHTML = formatarPct(maisCheio.nivel);
-	preencherSelo('kpi-ponto-maximo-status', PATAMARES[maisCheio.patamar].nome, maisCheio.patamar);
-	document.getElementById('kpi-ponto-maximo-descricao').innerHTML =
-		`${maisCheio.tipoResiduo}, limites de ${maisCheio.parametrizacao.limiteAtencao}% e ${maisCheio.parametrizacao.limiteCritico}%`;
-
-	// última coleta entre todos os compartimentos do ponto
-	let ultima = null;
-	let tipoResiduo = '';
-	for (let i = 0; i < ponto.compartimentos.length; i++) {
-		let coleta = ponto.compartimentos[i].ultimaColeta;
-		if (coleta != null && (ultima == null || coleta.dataHoraColeta > ultima.dataHoraColeta)) {
-			ultima = coleta;
-			tipoResiduo = ponto.compartimentos[i].tipoResiduo;
-		}
+	let tarde = false;
+	for (let i = 0; i < linhas.length; i++) {
+		let l = linhas[i];
+		let situacao = SITUACOES[l.situacaoNaColeta];
+		if (situacao == 'critico') tarde = true;
+		let item = clonar('modelo-coleta-item');
+		preencherTipo(item, l.tipoResiduo, l.prioridade);
+		item.querySelector('strong').className = 'nivel-' + situacao;
+		item.querySelector('.coleta-nivel').textContent = Math.round(Number(l.percentualAntes));
+		ul.appendChild(item);
 	}
-
-	if (ultima != null) {
-		document.getElementById('kpi-ponto-coleta').innerHTML = formatarHora(ultima.dataHoraColeta);
-		document.getElementById('kpi-ponto-coleta-descricao').innerHTML =
-			`${tipoResiduo} em ${formatarData(ultima.dataHoraColeta)}, estava com ${formatarPct(ultima.percentualAntes)}`;
-	} else {
-		document.getElementById('kpi-ponto-coleta').innerHTML = '–';
-		document.getElementById('kpi-ponto-coleta-descricao').innerHTML = 'Nenhuma coleta registrada';
-	}
+	nota.className = tarde ? 'coleta-nota coleta-nota-tarde' : 'coleta-nota';
+	mostrar(document.getElementById('coleta-nota-tarde'), tarde);
+	mostrar(document.getElementById('coleta-nota-ok'), !tarde);
 }
 
-// GRÁFICO DE BARRAS + MARCADORES: nível de cada compartimento e os limites dele
-function renderizarGraficoCompartimentos(ponto) {
-	let rotulos = [];
-	let niveis = [];
-	let cores = [];
-	let limitesAtencao = [];
-	let limitesCriticos = [];
 
-	for (let i = 0; i < ponto.compartimentos.length; i++) {
-		let c = ponto.compartimentos[i];
-		rotulos.push(c.tipoResiduo);
-		niveis.push(c.nivel);
-		cores.push(PATAMARES[c.patamar].cor);
-		limitesAtencao.push(c.parametrizacao.limiteAtencao);
-		limitesCriticos.push(c.parametrizacao.limiteCritico);
+// ---------- HISTÓRICO POR COMPARTIMENTO (consultas C3a a C3d) ----------
+
+// botões 24 h | 7 dias | 30 dias | 90 dias
+function renderizarSeletorPeriodo() {
+	let botoes = document.querySelectorAll('#seletor-periodo button');
+	for (let i = 0; i < botoes.length; i++) {
+		let ativo = botoes[i].dataset.periodo == periodoHistorico;
+		botoes[i].classList.toggle('ativo', ativo);
+		botoes[i].setAttribute('aria-pressed', ativo);
 	}
+	mostrarEstado(document.getElementById('historico-subtitulo'), periodoHistorico);
+}
 
-	// o gráfico é criado na primeira vez; nas outras, só troca os dados
-	if (graficoCompartimentos != null) {
-		graficoCompartimentos.data.labels = rotulos;
-		graficoCompartimentos.data.datasets[0].data = niveis;
-		graficoCompartimentos.data.datasets[0].backgroundColor = cores;
-		graficoCompartimentos.data.datasets[1].data = limitesAtencao;
-		graficoCompartimentos.data.datasets[2].data = limitesCriticos;
-		graficoCompartimentos.update();
-	} else {
-		graficoCompartimentos = new Chart(document.getElementById('grafico-compartimentos'), {
-			type: 'bar',
-			data: {
-				labels: rotulos,
-				datasets: [
-					{
-						label: 'Nível atual',
-						data: niveis,
-						backgroundColor: cores,
-						borderRadius: 6,
-						maxBarThickness: 48
-					},
-					// marcador de limite: um traço horizontal sobre cada barra
-					// (cor escurecida, para aparecer mesmo em cima de uma barra amarela ou vermelha)
-					{
-						type: 'line',
-						label: 'Limite de atenção',
-						data: limitesAtencao,
-						showLine: false,
-						pointStyle: 'line',
-						pointRadius: 24,
-						pointHoverRadius: 24,
-						pointBorderWidth: 3,
-						borderColor: CORES.amareloEscuro,
-						backgroundColor: CORES.amareloEscuro
-					},
-					{
-						type: 'line',
-						label: 'Limite crítico',
-						data: limitesCriticos,
-						showLine: false,
-						pointStyle: 'line',
-						pointRadius: 24,
-						pointHoverRadius: 24,
-						pointBorderWidth: 3,
-						borderColor: CORES.vermelhoEscuro,
-						backgroundColor: CORES.vermelhoEscuro
-					}
-				]
-			},
-			options: {
-				plugins: {
-					legend: { labels: { boxWidth: 12, boxHeight: 12, usePointStyle: true, font: { size: 11 } } }
-				},
-				scales: {
-					y: { beginAtZero: true, max: 100, ticks: { callback: (valor) => valor + '%' } },
-					x: { grid: { display: false }, ticks: { autoSkip: false, maxRotation: 0 } }
+function escolherPeriodo(chave) {
+	if (PERIODOS[chave] == undefined || pontoAberto == null) return;
+	periodoHistorico = chave;
+	renderizarSeletorPeriodo();
+	renderizarHistorico();
+}
+
+// início do eixo X: 24 h, 7 e 30 dias contam a partir de agora; 90 dias, a partir da meia-noite (como a C3d)
+function inicioDoPeriodo(chave) {
+	if (chave == '90d') {
+		return new Date(agora.getFullYear(), agora.getMonth(), agora.getDate() - 89).getTime();
+	}
+	return agora.getTime() - PERIODOS[chave].horas * 3600000;
+}
+
+// marcas do eixo X em horários "redondos": de 3 em 3 h (24 h) ou à meia-noite
+function marcasDoEixo(chave, minimo, maximo) {
+	let marcas = [];
+	if (chave == '24h') {
+		let d = new Date(minimo);
+		d.setMinutes(0, 0, 0);
+		d.setHours(Math.ceil(d.getHours() / 3) * 3);
+		for (; d.getTime() <= maximo; d.setHours(d.getHours() + 3)) {
+			if (d.getTime() >= minimo) marcas.push({ value: d.getTime() });
+		}
+		return marcas;
+	}
+	let passoDias = chave == '7d' ? 1 : chave == '30d' ? 5 : 15;
+	let d = new Date(maximo);
+	d.setHours(0, 0, 0, 0);
+	for (; d.getTime() >= minimo; d.setDate(d.getDate() - passoDias)) {
+		marcas.unshift({ value: d.getTime() });
+	}
+	return marcas;
+}
+
+// título do tooltip: data e hora (ou o intervalo que o ponto representa)
+function tituloDoIntervalo(chave, inicio) {
+	let d = new Date(inicio);
+	if (chave == '24h') return formatarDataHora(d);
+	if (chave == '7d') return `${formatarDataHora(d)} · maior nível da hora`;
+	if (chave == '30d') {
+		let fim = new Date(inicio + 6 * 3600000);
+		return `${formatarDia(d)}, ${doisDigitos(d.getHours())}h às ${doisDigitos(fim.getHours())}h · maior nível do bloco`;
+	}
+	return `${formatarDia(d)} · máximo do dia`;
+}
+
+// tooltip com TODOS os compartimentos no horário apontado: acha o ponto mais
+// próximo e junta o ponto de cada linha com o mesmo horário (até meio intervalo)
+if (temGraficos) {
+	Chart.Interaction.modes.mesmoHorario = function (chart, evento, opcoes, usarFinal) {
+		let maisProximo = Chart.Interaction.modes.nearest(chart, evento, { axis: 'x', intersect: false }, usarFinal);
+		if (maisProximo.length == 0) return [];
+		let x = maisProximo[0].element.x;
+		let tolerancia = 4;
+		let itens = [];
+		chart.data.datasets.forEach(function (conjunto, indice) {
+			let meta = chart.getDatasetMeta(indice);
+			if (meta.hidden) return;
+			let melhor = null;
+			meta.data.forEach(function (elemento, j) {
+				let distancia = Math.abs(elemento.x - x);
+				if (distancia <= tolerancia && (melhor == null || distancia < melhor.distancia)) {
+					melhor = { element: elemento, datasetIndex: indice, index: j, distancia: distancia };
 				}
+			});
+			if (melhor) itens.push(melhor);
+		});
+		return itens;
+	};
+}
+
+function renderizarHistorico() {
+	if (!temGraficos) return;
+	let ponto = pontoAberto;
+	let chave = periodoHistorico;
+	let linhas = carregarHistorico(ponto.idPonto, chave);
+
+	// uma linha (dataset) por compartimento, na ordem de prioridade
+	let porCompartimento = ponto.compartimentos.slice().sort(function (a, b) { return a.prioridade - b.prioridade; });
+	let datasets = [];
+	for (let i = 0; i < porCompartimento.length; i++) {
+		let c = porCompartimento[i];
+		let pontosLinha = [];
+		for (let j = 0; j < linhas.length; j++) {
+			if (linhas[j].idCompartimento == c.idCompartimento) {
+				pontosLinha.push({ x: lerData(linhas[j].inicioIntervalo).getTime(), y: Number(linhas[j].nivelPct) });
 			}
+		}
+		let cor = TIPOS_RESIDUO[c.tipo] ? TIPOS_RESIDUO[c.tipo].cor : '#00472A';
+		datasets.push({
+			label: `${c.tipo} P${c.prioridade} (sensor ${c.numeroSensor})`,
+			data: pontosLinha,
+			borderColor: cor, backgroundColor: cor,
+			borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: chave == '24h' ? 0.25 : 0,
+			limiteAtencao: c.limiteAtencao, limiteCritico: c.limiteCritico // usados no tooltip
 		});
 	}
-}
 
-// GRÁFICO DE LINHA: histórico do ponto como um todo
-// As leituras dos 3 sensores são agrupadas por hora (o GROUP BY é feito
-// aqui no JS): em cada hora, a média e o máximo do nível entre os compartimentos.
-function renderizarGraficoHistorico(ponto) {
-	let horas = [];          // '2026-11-03 18' (data e hora, sem os minutos)
-	let niveisPorHora = [];  // um vetor de níveis para cada hora
+	let minimo = inicioDoPeriodo(chave);
+	let maximo = agora.getTime();
 
-	for (let i = 0; i < ponto.compartimentos.length; i++) {
-		let c = ponto.compartimentos[i];
-		for (let j = 0; j < c.leituras.length; j++) {
-			let hora = c.leituras[j].dataHora.slice(0, 13);
-
-			// procura a hora na lista; se não tiver, cria
-			let posicao = horas.length;
-			for (let k = 0; k < horas.length; k++) {
-				if (horas[k] == hora) {
-					posicao = k;
-				}
-			}
-			if (posicao == horas.length) {
-				horas.push(hora);
-				niveisPorHora.push([]);
-			}
-
-			niveisPorHora[posicao].push(calcularNivel(c.leituras[j].distanciaCm, c.alturaCm));
-		}
-	}
-
-	let rotulos = [];
-	let medias = [];
-	let maximos = [];
-	for (let i = 0; i < horas.length; i++) {
-		rotulos.push(horas[i].slice(11, 13) + ':00');
-		medias.push(Math.round(calcularMedia(niveisPorHora[i])));
-		maximos.push(Math.round(calcularMaximo(niveisPorHora[i])));
-	}
-
-	if (graficoHistorico != null) {
-		graficoHistorico.data.labels = rotulos;
-		graficoHistorico.data.datasets[0].data = maximos;
-		graficoHistorico.data.datasets[1].data = medias;
-		graficoHistorico.update();
-	} else {
-		graficoHistorico = new Chart(document.getElementById('grafico-historico'), {
+	if (graficoHistorico == null) {
+		graficoHistorico = new Chart(document.getElementById('graficoHistorico'), {
 			type: 'line',
-			data: {
-				labels: rotulos,
-				datasets: [
-					{
-						label: 'Compartimento mais cheio',
-						data: maximos,
-						borderColor: CORES.escuro,
-						borderWidth: 2,
-						borderDash: [6, 4],
-						pointRadius: 0,
-						tension: 0.3
-					},
-					{
-						label: 'Nível médio do ponto',
-						data: medias,
-						borderColor: CORES.verde,
-						backgroundColor: 'rgba(2, 146, 93, 0.12)',
-						borderWidth: 2,
-						pointRadius: 0,
-						fill: true,
-						tension: 0.3
-					}
-				]
-			},
+			data: { datasets: datasets },
 			options: {
-				interaction: { mode: 'index', intersect: false }, // tooltip mostra as duas linhas da mesma hora
+				parsing: false,
+				animation: false,
+				interaction: { mode: 'mesmoHorario', intersect: false },
 				plugins: {
-					legend: { labels: { boxWidth: 12, boxHeight: 12, font: { size: 11 } } }
+					legend: { position: 'bottom', labels: { boxWidth: 12, boxHeight: 3, font: { size: 11 } } },
+					tooltip: {
+						callbacks: {
+							title: function (itens) { return tituloDoIntervalo(periodoHistorico, itens[0].parsed.x); },
+							label: function (item) {
+								let d = item.dataset;
+								return ` ${d.label}: ${formatarNumero(item.parsed.y, 1)}% (atenção ${d.limiteAtencao}%, crítico ${d.limiteCritico}%)`;
+							}
+						}
+					}
 				},
 				scales: {
-					y: { beginAtZero: true, max: 100, ticks: { callback: (valor) => valor + '%' } },
-					x: { grid: { display: false }, ticks: { maxTicksLimit: 8, maxRotation: 0 } }
+					x: {
+						type: 'linear', min: minimo, max: maximo,
+						afterBuildTicks: function (eixo) { eixo.ticks = marcasDoEixo(periodoHistorico, eixo.min, eixo.max); },
+						ticks: {
+							autoSkip: true, autoSkipPadding: 12, maxRotation: 0, // em tela estreita, esconde as marcas que não cabem
+							callback: function (valor) {
+								let d = new Date(valor);
+								return periodoHistorico == '24h' ? formatarHora(d) : formatarDia(d);
+							}
+						},
+						grid: { display: false }
+					},
+					y: { min: 0, max: 100, ticks: { stepSize: 25, callback: function (valor) { return valor + '%'; } }, grid: { color: '#EEF3F0' } }
 				}
 			}
 		});
-	}
-}
-
-// TABELA: leituras mais recentes dos sensores do ponto
-// Percorre as leituras de trás para frente (da mais nova para a mais antiga,
-// como ORDER BY dataHora DESC) até juntar QTD_LEITURAS_RECENTES.
-function renderizarLeiturasRecentes(ponto) {
-	let tabela = document.getElementById('tabela-leituras');
-	tabela.innerHTML = '';
-
-	let qtd = 0;
-	let i = leiturasMock.length - 1;
-	while (i >= 0 && qtd < QTD_LEITURAS_RECENTES) {
-		let leitura = leiturasMock[i];
-
-		for (let j = 0; j < ponto.compartimentos.length; j++) {
-			let c = ponto.compartimentos[j];
-			if (leitura.fkSensor == c.sensor.idSensor) {
-				let nivel = calcularNivel(leitura.distanciaCm, c.alturaCm);
-				let patamar = classificarPatamar(nivel, c.parametrizacao);
-				tabela.innerHTML += `
-					<tr>
-						<td>${formatarHora(leitura.dataHora)}</td>
-						<td>${c.tipoResiduo}</td>
-						<td>${leitura.distanciaCm.toFixed(1).replace('.', ',')} cm</td>
-						<td><span class="nivel nivel-${patamar}">${formatarPct(nivel)}</span></td>
-					</tr>`;
-				qtd++;
-			}
-		}
-
-		i--;
-	}
-}
-
-
-// --------------------------------------------------------------------------
-// TROCA ENTRE AS VISÕES
-// abrirVisao(0) mostra a visão geral; abrirVisao(3) mostra o ponto 3.
-// É chamada pelo select, pelos botões dos pontos e pelo botão "Visão geral".
-// --------------------------------------------------------------------------
-
-function abrirVisao(idPonto) {
-	let ponto = buscarPonto(idPonto);
-
-	document.getElementById('filtro-visao').value = idPonto;
-
-	if (ponto == null) {
-		document.getElementById('visao-ponto').style.display = 'none';
-		document.getElementById('visao-geral').style.display = 'flex';
-		document.getElementById('botao-voltar').style.display = 'none';
-		document.getElementById('painel-titulo').innerHTML = 'Monitoramento das lixeiras da cidade';
-		document.getElementById('painel-subtitulo').innerHTML =
-			`${prefeituraMock.cidade} · Saiba quais pontos estão enchendo e colete antes que o lixo transborde`;
 	} else {
-		// mostra a seção antes de desenhar, para o Chart.js medir o tamanho certo
-		document.getElementById('visao-geral').style.display = 'none';
-		document.getElementById('visao-ponto').style.display = 'flex';
-		document.getElementById('botao-voltar').style.display = 'inline-block';
-		renderizarVisaoPonto(ponto);
+		graficoHistorico.data.datasets = datasets;
+		graficoHistorico.options.scales.x.min = minimo;
+		graficoHistorico.options.scales.x.max = maximo;
+		graficoHistorico.update();
 	}
 }
 
-let pontos = montarPontos();
 
-montarFiltro(pontos);
-mostrarUltimaAtualizacao();
-renderizarVisaoGeral(pontos);
-abrirVisao(0);
+// ---------- LEITURAS DO DIA (consulta C6) ----------
+
+// o campo de data começa em hoje e aceita até 90 dias atrás
+function prepararCampoData() {
+	let campo = document.getElementById('leituras-data');
+	let minimo = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate() - DIAS_DE_LEITURAS);
+	campo.min = dataParaCampo(minimo);
+	campo.max = dataParaCampo(agora);
+	campo.value = campo.max;
+}
+
+function aoEscolherData() {
+	let campo = document.getElementById('leituras-data');
+	// data fora do intervalo ou vazia (o teclado deixa digitar): volta para hoje
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(campo.value) || campo.value < campo.min || campo.value > campo.max) {
+		campo.value = campo.max;
+	}
+	renderizarLeiturasDia();
+}
+
+function renderizarLeiturasDia() {
+	let data = document.getElementById('leituras-data').value;
+	let linhas = carregarLeiturasDia(pontoAberto.idPonto, data);
+	let partes = data.split('-');
+	escreverEm(document, '.leituras-dia', `${partes[2]}/${partes[1]}`);
+
+	let corpo = document.getElementById('leituras-corpo');
+	corpo.replaceChildren();
+	for (let i = 0; i < linhas.length; i++) {
+		let l = linhas[i];
+		let linha = clonar('modelo-leitura');
+		linha.querySelector('.leitura-hora').textContent = formatarHora(lerData(l.dataHora));
+		preencherTipo(linha, l.tipoResiduo, l.prioridade);
+		linha.querySelector('.leitura-sensor').textContent = l.numeroSensor;
+		linha.querySelector('.leitura-distancia').textContent = formatarNumero(Number(l.distanciaCm), 1);
+		linha.querySelector('.leitura-nivel').className = 'leitura-nivel nivel-' + SITUACOES[l.situacao];
+		linha.querySelector('.leitura-nivel-valor').textContent = Math.round(Number(l.nivelPct));
+		corpo.appendChild(linha);
+	}
+	// volta a lista para o topo (a leitura mais nova) ao trocar de data
+	document.getElementById('leituras-rolagem').scrollTop = 0;
+
+	let vazio = linhas.length == 0;
+	document.getElementById('leituras-rolagem').hidden = vazio;
+	document.getElementById('leituras-vazia').hidden = !vazio;
+	mostrar(document.getElementById('leituras-com'), !vazio);
+	mostrar(document.getElementById('leituras-sem'), vazio);
+	escrever('leituras-qtd', linhas.length);
+	aplicarPlural(document.getElementById('leituras-palavra'), linhas.length);
+}
+
+
+// ==================================================================
+// INICIALIZAÇÃO
+// ==================================================================
+function atualizarTudo() {
+	agora = new Date();
+	prepararDados(carregarDados());
+	renderizarTopo();
+	renderizarAlerta();
+	renderizarIndicadores();
+	renderizarFiltros();
+	atualizarTabela();
+	atualizarGraficoBairros();
+}
+
+function trocarCenario() {
+	exemploAtual = null;
+	limparFiltros();
+	voltarVisaoGeral();
+	atualizarTudo();
+}
+
+
+// começa aqui (no fim do script, depois de todas as variáveis declaradas)
+atualizarTudo();
+// Com o banco: atualizar a cada 1 min (o sensor manda leitura a cada 15 min)
+// setInterval(atualizarTudo, 60000);

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 
 <head>
 	<meta charset="UTF-8">
@@ -8,7 +8,7 @@
 	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
 	<!-- Importando o ícone da aba do navegador-->
-	 <link rel="icon" href="smartcoleta-logo.svg">
+	 <link rel="icon" href="../logos/smartcoleta-logo.svg">
 
 	 <link rel="preconnect" href="https://fonts.googleapis.com">
 	 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap">
@@ -16,8 +16,8 @@
 
 	 <!-- defer: os scripts rodam depois que o HTML foi lido, nesta ordem.
 	  dados-exemplo.js primeiro (sai quando a dash ler o banco), depois dashboard.js -->
-	  <script src="/js/dashboard/dados-exemplo.js" defer></script>
-	  <script src="/js/dashboard/dashboard.js" defer></script>
+	  <script src="../js/dashboard/dados-exemplo.js" defer></script>
+	  <script src="../js/dashboard/dashboard.js" defer></script>
 </head>
 
 <body>
@@ -39,9 +39,7 @@
 			<div class="barra-lateral-botoes">
 				<button class="barra-botao barra-botao-perfil">Perfil</button>
 				<button class="barra-botao barra-botao-config">Configurações</button>
-				<a href="/index.html">
-					<button class="barra-botao barra-botao-perfil">Sair</button>
-				</a>
+				<a class="barra-botao barra-botao-perfil" href="/index.html">Sair</a>
 			</div>
 		</aside>
 
@@ -52,18 +50,25 @@
 				 <header class="painel-topo">
 					<div class="painel-topo-texto">
 						<button class="botao-voltar" type="button" id="botao-voltar" hidden onclick="voltarVisaoGeral()">&larr; Visão geral</button>
-						<h1 class="painel-titulo" id="painel-titulo"></h1>
-						<p class="painel-subtitulo" id="painel-subtitulo"></p>
+						<h1 class="painel-titulo">
+							<span id="titulo-geral">Preenchimento das lixeiras</span>
+							<span id="titulo-ponto" hidden><span id="titulo-rua"></span> · <span id="titulo-bairro"></span></span>
+						</h1>
+						<p class="painel-subtitulo" id="subtitulo-geral"><span class="texto-cidade"></span> · <span id="subtitulo-pontos"></span> pontos de coleta · <span id="subtitulo-compartimentos"></span> compartimentos</p>
+						<p class="painel-subtitulo" id="subtitulo-ponto" hidden>Ponto de coleta <span id="subtitulo-id-ponto"></span> · <span id="subtitulo-qtd-ponto"></span> compartimentos · <span class="texto-cidade"></span></p>
 					</div>
 
 					<div class="painel-topo-info">
-						<p class="painel-atualizacao" id="painel-atualizacao"></p>
+						<p class="painel-atualizacao">
+							<span id="atualizacao-com" hidden>Última leitura às <strong id="atualizacao-hora"></strong> (<span id="atualizacao-ha"></span>)</span>
+							<span id="atualizacao-sem" hidden>Nenhuma leitura recebida</span>
+						</p>
 						<!-- Só para os dados de exemplo: some quando a dash ler o banco -->
 						 <label class="cenario" id="cenario-caixa">
 							Dados de exemplo
 							<select id="cenario" onchange="trocarCenario()">
-								<option value="10">10 pontos . 30 compartimentos (POC)</option>
-								<option value="40">40 pontos . 120 compartimentos </option>
+								<option value="10">10 pontos · 30 compartimentos (POC)</option>
+								<option value="40">40 pontos · 120 compartimentos</option>
 							</select>
 						 </label>
 					</div>
@@ -76,28 +81,90 @@
 						<!-- ALERTA: a decisão do momento ("onde mando o caminhão?") -->
 						 <div class="card alerta" id="alerta">
 							<div class="alerta-resumo">
-								<p class="alerta-rotulo" id="alerta-rotulo"></p>
+								<p class="alerta-rotulo" id="alerta-rotulo" hidden>
+									<svg class="icone" data-estado="critico atencao" hidden viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3 2 21h20L12 3Z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><path d="M12 10v5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="18" r="1.4" fill="currentColor"/></svg>
+									<span data-estado="critico" hidden>Ação agora</span>
+									<span data-estado="atencao" hidden>Programar coleta</span>
+									<span data-estado="normal" hidden>Tudo em ordem</span>
+								</p>
 								<p class="alerta-numero" id="alerta-numero"></p>
-								<p class="alerta-titulo" id="alerta-titulo"></p>
-								<p class="alerta-texto" id="alerta-texto"></p>
+								<p class="alerta-titulo">
+									<span data-estado="critico normal" hidden><span id="alerta-palavra-coletar" data-um="ponto" data-varios="pontos">pontos</span> para coletar</span>
+									<span data-estado="atencao" hidden><span id="alerta-palavra-atencao" data-um="ponto" data-varios="pontos">pontos</span> em atenção</span>
+								</p>
+								<p class="alerta-texto">
+									<span data-estado="critico" hidden><strong><span id="alerta-qtd-criticos"></span> <span id="alerta-palavra-criticos" data-um="crítico" data-varios="críticos">críticos</span></strong>: coletar agora.<br><span id="alerta-texto-atencao"><strong><span id="alerta-qtd-atencao"></span> em atenção</strong>: incluir na mesma rota.</span></span>
+									<span data-estado="atencao" hidden>Nenhum crítico. Programe a coleta destes pontos antes que cheguem ao limite crítico.</span>
+									<span data-estado="normal" hidden>Todos os compartimentos estão abaixo do limite de atenção.</span>
+								</p>
 							</div>
 							<div class="alerta-fila">
-								<p class="fila-legenda" id="fila-legenda"></p>
+								<p class="fila-legenda">
+									<span id="fila-legenda-alerta">Ordem sugerida: situação, depois prioridade do resíduo</span>
+									<span id="fila-legenda-proximos" hidden>Próximos a entrar em atenção</span>
+								</p>
 								<!-- um botão por ponto, na ordem de urgência (montado pelo script) -->
 								 <ol class="fila" id="fila"></ol>
-								 <button class="fila-ver-todos" type="button" id="fila-ver-todos" hidden onclick="mostrarPontosEmAlerta()"></button>
+								 <button class="fila-ver-todos" type="button" id="fila-ver-todos" hidden onclick="mostrarPontosEmAlerta()">Ver os <span id="fila-qtd"></span> pontos na tabela &rarr;</button>
 							</div>
 						 </div>
 
 						 <!-- INDICADORES: quantidade de SENSORES (= compartimentos) em cada situação.
-						  Cada um cita o sensor mais urgente e tem "Ver todos" (montado pelo script) -->
+						  Cada um cita o sensor mais urgente e tem "Ver todos" -->
 						  <div class="indicadores" id="indicadores">
 							<div class="indicador indicador-duplo">
-								<div class="indicador-metade" id="indicador-critico"></div>
-								<div class="indicador-metade" id="indicador-atencao"></div>
+								<div class="indicador-metade" id="indicador-critico">
+									<span class="indicador-cabecalho">
+										<span class="indicador-titulo">Crítico</span>
+										<button class="ver-todos" type="button" hidden aria-expanded="false" aria-controls="painel-lista" onclick="alternarLista('critico', this)">Ver todos (<span class="ver-todos-qtd"></span>)</button>
+									</span>
+									<span class="indicador-linha">
+										<span class="indicador-dado"></span>
+										<span class="indicador-unidade" data-um="sensor" data-varios="sensores">sensores</span>
+									</span>
+									<span class="indicador-citado citado" hidden><strong>Sensor <span class="citado-sensor"></span></strong> · <span class="citado-rua"></span> · <span class="citado-leitura"><span class="citado-tipo"></span> <span class="citado-nivel"></span>%</span><span class="citado-parado"></span></span>
+									<span class="indicador-citado indicador-vazio" hidden>Nenhum sensor em nível crítico</span>
+								</div>
+								<div class="indicador-metade" id="indicador-atencao">
+									<span class="indicador-cabecalho">
+										<span class="indicador-titulo">Atenção</span>
+										<button class="ver-todos" type="button" hidden aria-expanded="false" aria-controls="painel-lista" onclick="alternarLista('atencao', this)">Ver todos (<span class="ver-todos-qtd"></span>)</button>
+									</span>
+									<span class="indicador-linha">
+										<span class="indicador-dado"></span>
+										<span class="indicador-unidade" data-um="sensor" data-varios="sensores">sensores</span>
+									</span>
+									<span class="indicador-citado citado" hidden><strong>Sensor <span class="citado-sensor"></span></strong> · <span class="citado-rua"></span> · <span class="citado-leitura"><span class="citado-tipo"></span> <span class="citado-nivel"></span>%</span><span class="citado-parado"></span></span>
+									<span class="indicador-citado indicador-vazio" hidden>Nenhum sensor em atenção</span>
+								</div>
 							</div>
-							<div class="indicador" id="indicador-breve"></div>
-							<div class="indicador" id="indicador-semleitura"></div>
+							<div class="indicador" id="indicador-breve">
+								<span class="indicador-cabecalho">
+									<span class="indicador-titulo">Próximas 6 h</span>
+									<button class="ver-todos" type="button" hidden aria-expanded="false" aria-controls="painel-lista" onclick="alternarLista('breve', this)">Ver todos (<span class="ver-todos-qtd"></span>)</button>
+								</span>
+								<span class="indicador-linha">
+									<span class="indicador-dado"></span>
+									<span class="indicador-unidade" data-um="sensor" data-varios="sensores">sensores</span>
+									<span class="indicador-descricao">normais que entram em atenção</span>
+								</span>
+								<span class="indicador-citado citado" hidden><strong>Sensor <span class="citado-sensor"></span></strong> · <span class="citado-rua"></span> · <span class="citado-leitura"><span class="citado-tipo"></span> <span class="citado-nivel"></span>%</span><span class="citado-parado"></span></span>
+								<span class="indicador-citado indicador-vazio" hidden>Nenhum sensor entra em atenção nas próximas 6 h</span>
+							</div>
+							<div class="indicador" id="indicador-semleitura">
+								<span class="indicador-cabecalho">
+									<span class="indicador-titulo">Sensores sem leitura</span>
+									<button class="ver-todos" type="button" hidden aria-expanded="false" aria-controls="painel-lista" onclick="alternarLista('semleitura', this)">Ver todos (<span class="ver-todos-qtd"></span>)</button>
+								</span>
+								<span class="indicador-linha">
+									<span class="indicador-dado"></span>
+									<span class="indicador-unidade" data-um="sensor" data-varios="sensores">sensores</span>
+									<span class="indicador-status indicador-status-critico" id="semleitura-etiqueta" hidden>Sem leitura: <span id="semleitura-numeros"></span></span>
+									<span class="indicador-descricao"><span id="pct-com-leitura"></span>% com leitura</span>
+								</span>
+								<span class="indicador-citado citado" hidden><strong>Sensor <span class="citado-sensor"></span></strong> · <span class="citado-rua"></span> · <span class="citado-leitura"><span class="citado-tipo"></span> <span class="citado-nivel"></span>%</span><span class="citado-parado"></span></span>
+								<span class="indicador-citado indicador-vazio" hidden>Todos os sensores enviaram leitura nos últimos 30 min</span>
+							</div>
 						  </div>
 					</div>
 
@@ -109,14 +176,26 @@
 								<div class="filtros">
 									<input class="filtro-busca" type="search" id="filtro-busca" placeholder="Buscar rua, bairro ou sensor" 
 									aria-label="Buscar rua, bairro ou sensor" oninput="aoBuscar()">
-									<select class="filtro-bairro" id="filtro-bairro" aria-label="Filtrar por bairro" onchange="aoEscolherBairro()"></select>
+									<select class="filtro-bairro" id="filtro-bairro" aria-label="Filtrar por bairro" onchange="aoEscolherBairro()">
+										<option value="">Todos os bairros</option>
+									</select>
 								</div>
 							</div>
 
 							<!-- filtrar por situação, com a quantidade de compartimento em cada uma -->
 							 <div class="chips-linha">
-								<div class="chips" id="chips"></div>
-								<p class="tabela-contagem" id="tabela-contagem"></p>
+								<div class="chips" id="chips">
+									<button type="button" class="chip chip-ativo" data-situacao="" onclick="filtrarSituacao([])">Todos <span></span></button>
+									<button type="button" class="chip chip-critico" data-situacao="critico" onclick="filtrarSituacao(['critico'])"><i></i>Crítico <span></span></button>
+									<button type="button" class="chip chip-atencao" data-situacao="atencao" onclick="filtrarSituacao(['atencao'])"><i></i>Atenção <span></span></button>
+									<button type="button" class="chip chip-breve" data-situacao="breve" onclick="filtrarSituacao(['breve'])"><i></i>Próximas 6 h <span></span></button>
+									<button type="button" class="chip chip-semleitura" data-situacao="semleitura" onclick="filtrarSituacao(['semleitura'])"><i></i>Sem leitura <span></span></button>
+									<button type="button" class="chip chip-normal" data-situacao="normal" onclick="filtrarSituacao(['normal'])"><i></i>Normal <span></span></button>
+								</div>
+								<p class="tabela-contagem">
+									<span id="contagem-completa"><span id="contagem-total"></span> compartimentos · mais urgente primeiro</span>
+									<span id="contagem-filtrada" hidden><span id="contagem-visiveis"></span> de <span id="contagem-total-filtro"></span> · <button type="button" class="link" onclick="limparFiltros()">limpar filtros</button></span>
+								</p>
 							 </div>
 
 							 <div class="tabela-rolagem">
@@ -133,7 +212,7 @@
 									</thead>
 									<tbody id="tabela-corpo"></tbody>
 								</table>
-								<p class="tabela-vazia" id="tabela-vazia" hidden>Nenhum comparimento com esses filtros.</p>
+								<p class="tabela-vazia" id="tabela-vazia" hidden>Nenhum compartimento com esses filtros.</p>
 							 </div>
 						 </div>
 
@@ -153,19 +232,39 @@
 					<div class="linha-topo">
 						<!-- DIAGNÓSTICO: a decisão para este ponto e o motivo -->
 						 <div class="card alerta diagnostico" id="diagnostico">
-							<p class="alerta-rotulo" id="diag-rotulo"></p>
-							<h2 class="alerta-titulo" id="diag-titulo"></h2>
-							<p class="alerta-texto" id="diag-texto"></p>
+							<p class="alerta-rotulo">
+								<svg class="icone" data-estado="critico atencao" hidden viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3 2 21h20L12 3Z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><path d="M12 10v5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="18" r="1.4" fill="currentColor"/></svg>
+								<span data-estado="critico" hidden>Ação agora</span>
+								<span data-estado="atencao" hidden>Programar coleta</span>
+								<span data-estado="semleitura" hidden>Manutenção</span>
+								<span data-estado="normal" hidden>Sem necessidade de coleta</span>
+							</p>
+							<h2 class="alerta-titulo">
+								<span data-estado="critico" hidden>Coletar agora: <span class="diag-gatilho-tipo"></span> em <span class="diag-gatilho-nivel"></span>%</span>
+								<span data-estado="atencao" hidden>Incluir na próxima rota: <span class="diag-gatilho-tipo"></span> em <span class="diag-gatilho-nivel"></span>%</span>
+								<span data-estado="semleitura" hidden>Sem leitura dos sensores</span>
+								<span data-estado="normal" hidden>Todos os compartimentos abaixo do limite de atenção</span>
+							</h2>
+							<p class="alerta-texto">
+								<span data-estado="critico" hidden>Passou do limite crítico (<span class="diag-limite-critico"></span>%)<span class="diag-fica"> e fica <span class="diag-previsao"></span></span>. O caminhão recolhe os <span class="diag-qtd"></span> compartimentos do ponto.</span>
+								<span data-estado="atencao" hidden>Passou do limite de atenção (<span class="diag-limite-atencao"></span>%)<span class="diag-chega"> e chega ao <span class="diag-previsao"></span></span>. O caminhão recolhe os <span class="diag-qtd"></span> compartimentos do ponto.</span>
+								<span data-estado="semleitura" hidden>Verifique os sensores no local antes de decidir a coleta.</span>
+								<span data-estado="normal" hidden><span class="diag-com-previsao">O primeiro a chegar ao limite é o <span class="diag-gatilho-tipo"></span>: <span class="diag-previsao"></span>.</span><span class="diag-sem-previsao">Nenhum compartimento enchendo no momento.</span></span>
+								<strong id="diag-aviso-semleitura" hidden>Há sensor sem leitura neste ponto.</strong>
+							</p>
 							<ul class="diag-lista" id="diag-lista"></ul>
 						 </div>
 
 						 <!-- ÚLTIMA COLETA: vem de tabela N:M coleta_compartimento (consulta C4) -->
 						  <div class="card coleta">
 							<h2 class="card-titulo">Última coleta</h2>
-							<p class="coleta-data" id="coleta-data"></p>
-							<p class="card-subtitulo" id="coleta-ha"></p>
+							<p class="coleta-data"><span id="coleta-data"></span><span id="coleta-nenhuma" hidden>Nenhuma</span></p>
+							<p class="card-subtitulo"><span id="coleta-ha-caixa"><span id="coleta-ha"></span> · nível de cada compartimento na hora da coleta</span><span id="coleta-sem" hidden>Este ponto ainda não teve coleta registrada.</span></p>
 							<ul class="coleta-itens" id="coleta-itens"></ul>
-							<p class="coleta-nota" id="coleta-nota"></p>
+							<p class="coleta-nota" id="coleta-nota" hidden>
+								<span id="coleta-nota-tarde" hidden>Coletada com compartimento já em nível crítico: vale antecipar a próxima.</span>
+								<span id="coleta-nota-ok" hidden>Coletada antes do nível crítico.</span>
+							</p>
 						  </div>
 					</div>
 
@@ -175,9 +274,19 @@
 							<div class="card-cabecalho">
 								<div>
 									<h2 class="card-titulo">Histórico por compartimento</h2>
-									<p class="card-subtitulo" id="historico-subtitulo"></p>
+									<p class="card-subtitulo" id="historico-subtitulo">
+										<span data-estado="24h">Uma leitura a cada 15 min</span>
+										<span data-estado="7d" hidden>Maior nível de cada hora</span>
+										<span data-estado="30d" hidden>Maior nível de cada 6 h</span>
+										<span data-estado="90d" hidden>Maior nível de cada dia</span>
+									</p>
 								</div>
-								<div class="seletor-periodo" id="seletor-periodo" role="group" aria-label="Período do histórico"></div>
+								<div class="seletor-periodo" id="seletor-periodo" role="group" aria-label="Período do histórico">
+									<button type="button" class="ativo" aria-pressed="true" data-periodo="24h" onclick="escolherPeriodo('24h')">24 h</button>
+									<button type="button" aria-pressed="false" data-periodo="7d" onclick="escolherPeriodo('7d')">7 dias</button>
+									<button type="button" aria-pressed="false" data-periodo="30d" onclick="escolherPeriodo('30d')">30 dias</button>
+									<button type="button" aria-pressed="false" data-periodo="90d" onclick="escolherPeriodo('90d')">90 dias</button>
+								</div>
 								</div>
 								<div class="grafico">
 									<canvas id="graficoHistorico"></canvas>
@@ -189,7 +298,10 @@
 							<div class="card-cabecalho">
 								<div>
 									<h2 class="card-titulo">Leituras do dia</h2>
-									<p class="card-subtitulo" id="leituras-contagem"></p>
+									<p class="card-subtitulo">
+										<span id="leituras-com"><span id="leituras-qtd"></span> <span id="leituras-palavra" data-um="leitura" data-varios="leituras">leituras</span> em <span class="leituras-dia"></span> · mais nova primeiro</span>
+										<span id="leituras-sem" hidden>Escolha outra data</span>
+									</p>
 								</div>
 								<input class="filtro-data" type="date" id="leituras-data" aria-label="Data das leituras" onchange="aoEscolherData()">
 							</div>
@@ -207,7 +319,7 @@
 									<tbody id="leituras-corpo"></tbody>
 								</table>
 							</div>
-							<p class="tabela-vazia" id="leituras-vazia" hidden></p>
+							<p class="tabela-vazia" id="leituras-vazia" hidden>Nenhuma leitura em <span class="leituras-dia"></span></p>
 						 </div>
 					</div>
 				   </section>
@@ -220,7 +332,13 @@
 		 <div class="painel-lista-fundo" id="painel-lista-fundo" hidden></div>
 		 <div class="painel-lista" id="painel-lista" role="dialog" aria-labelledby="painel-lista-titulo" hidden>
 			<div class="painel-lista-cabecalho">
-				<h2 class="painel-lista-titulo" id="painel-lista-titulo"></h2>
+				<h2 class="painel-lista-titulo" id="painel-lista-titulo">
+					<span data-estado="critico" hidden>Sensores em nível crítico</span>
+					<span data-estado="atencao" hidden>Sensores em atenção</span>
+					<span data-estado="breve" hidden>Entram em atenção nas próximas 6 h</span>
+					<span data-estado="semleitura" hidden>Sensores sem leitura</span>
+					(<span id="painel-lista-qtd"></span>)
+				</h2>
 				<button class="painel-lista-fechar" type="button" aria-label="Fechar lista" onclick="fecharLista()">&times;</button>
 			</div>
 			<p class="painel-lista-legenda">Mais urgente primeiro · clique num sensor para abrir o ponto</p>
@@ -229,6 +347,72 @@
 				<button class="link" type="button" id="painel-lista-filtrar" onclick="filtrarPelaLista()">Filtrar na tabela</button>
 			</div>
 		 </div>
+
+	<ul id="ajuda-prioridade" hidden>
+		<li data-prioridade="1">Prioridade 1: coletar primeiro</li>
+		<li data-prioridade="2">Prioridade 2: coletar depois do orgânico</li>
+		<li data-prioridade="3">Prioridade 3: pode esperar mais</li>
+	</ul>
+
+	<template id="modelo-fila">
+		<li>
+			<button class="fila-item" type="button" data-titulo="Abrir {rua}">
+				<span class="fila-posicao"></span>
+				<span class="fila-local">
+					<span class="fila-rua"></span>
+					<span class="fila-bairro"></span>
+				</span>
+				<span class="fila-motivo"><span class="tipo-nome"></span> <span class="prioridade">P<span class="prioridade-num"></span></span> <strong><span class="fila-nivel"></span>%</strong></span>
+				<span class="fila-previsao"></span>
+				<span class="fila-seta" aria-hidden="true">&rsaquo;</span>
+			</button>
+		</li>
+	</template>
+
+	<template id="modelo-lista-item">
+		<li>
+			<button class="lista-item" type="button">
+				<span class="lista-sensor">Sensor <span class="lista-sensor-num"></span></span>
+				<span class="lista-local"><span class="lista-rua"></span> · <span class="lista-bairro"></span></span>
+				<span class="lista-tipo"><span class="tipo-nome"></span> <span class="prioridade">P<span class="prioridade-num"></span></span></span>
+				<span class="lista-detalhe"><span class="lista-parado"></span><span class="lista-com-leitura"><strong class="lista-nivel"><span class="lista-nivel-valor"></span>%</strong><span class="lista-previsao-caixa"> · <span class="lista-previsao"></span></span></span></span>
+			</button>
+		</li>
+	</template>
+
+	<template id="modelo-linha-tabela">
+		<tr tabindex="0" data-titulo="Abrir {rua}">
+			<td><span class="situacao"><span data-estado="critico">Crítico</span><span data-estado="atencao">Atenção</span><span data-estado="semleitura">Sem leitura</span><span data-estado="normal">Normal</span></span></td>
+			<td class="col-ponto"><span class="ponto-rua"></span><span class="ponto-bairro"></span></td>
+			<td><span class="tipo-nome"></span> <span class="prioridade">P<span class="prioridade-num"></span></span><span class="sensor-num">sensor <span class="sensor-num-valor"></span></span></td>
+			<td><span class="nivel-celula"><span class="barra" data-titulo="Atenção a partir de {atencao}% · crítico a partir de {critico}%"><span class="barra-preenchimento"></span><span class="barra-limite barra-limite-atencao"></span><span class="barra-limite barra-limite-critico"></span></span><span class="nivel-texto"></span></span></td>
+			<td class="col-previsao"></td>
+			<td class="col-leitura"><span class="leitura-ha"></span><span class="leitura-nunca" hidden>nunca</span></td>
+		</tr>
+	</template>
+
+	<template id="modelo-diag-item">
+		<li class="diag-item">
+			<span class="diag-tipo"><span class="tipo-nome"></span> <span class="prioridade">P<span class="prioridade-num"></span></span></span>
+			<span class="barra" data-titulo="Atenção a partir de {atencao}% · crítico a partir de {critico}%"><span class="barra-preenchimento"></span><span class="barra-limite barra-limite-atencao"></span><span class="barra-limite barra-limite-critico"></span></span>
+			<span class="diag-nivel"></span>
+			<span class="diag-detalhe"><span class="diag-detalhe-semleitura">sensor <span class="diag-sensor"></span> <span class="diag-parado"></span></span><span class="diag-detalhe-leitura"><span class="diag-previsao-caixa"><span class="diag-previsao-item"></span> · </span>limites <span class="diag-lim-atencao"></span>% / <span class="diag-lim-critico"></span>%</span></span>
+		</li>
+	</template>
+
+	<template id="modelo-coleta-item">
+		<li><span><span class="tipo-nome"></span> <span class="prioridade">P<span class="prioridade-num"></span></span></span><strong><span class="coleta-nivel"></span>%</strong></li>
+	</template>
+
+	<template id="modelo-leitura">
+		<tr>
+			<td class="leitura-hora"></td>
+			<td><span class="tipo-nome"></span> <span class="prioridade">P<span class="prioridade-num"></span></span></td>
+			<td class="leitura-sensor"></td>
+			<td><span class="leitura-distancia"></span> cm</td>
+			<td><strong class="leitura-nivel"><span class="leitura-nivel-valor"></span>%</strong></td>
+		</tr>
+	</template>
 </body>
 
 </html>
