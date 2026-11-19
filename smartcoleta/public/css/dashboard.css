@@ -45,7 +45,7 @@
 	--cinza-etiqueta: #5B6B63;  /* branco: 5,63:1 */
 
 	/* espaçamentos proporcionais: crescem com a tela, com mínimo e máximo */
-	--espaço: clamp(12px, 1.1vw, 18px);
+	--espaco: clamp(12px, 1.1vw, 18px);
 	--card-padding: clamp(14px, 1.2vw, 20px);
 	--raio: 18px;
    }
@@ -237,7 +237,7 @@
 		line-height: 1.2;
    }
 
-   .painel.subtitulo {
+   .painel-subtitulo {
 		margin-top: 2px;
 		color: var(--cinzado);
 		font-size: 14px;
@@ -532,7 +532,7 @@
 		border-color: rgba(214, 69, 69, 0.55);
    }
 
-   .fial-item-atencao {
+   .fila-item-atencao {
 		border-color: rgba(242, 183, 5, 0.7);
    }
 
@@ -575,7 +575,7 @@
 		text-overflow: ellipsis;
    }
 
-   .fila-bairrro {
+   .fila-bairro {
 		flex-shrink: 1000; /* o bairro encolhe primeiro */
 		min-width: 0;
 		overflow: hidden;
@@ -746,7 +746,7 @@
 		overflow: hidden;
 		color: #3E5248;
 		font-size: 12px;
-		line-height: 1.35px;
+		line-height: 1.35;
 		white-space: nowrap;
 		text-overflow: ellipsis;
 	}
@@ -909,7 +909,7 @@
 
    /* tela pequena: o painel vira um modal no centro, com fundo escurecido */
    .painel-lista-fundo {
-		position: relative;
+		position: fixed;
    }
    .painel-lista-modal {
 		left: 50%;
@@ -994,7 +994,7 @@
 }
 
 .tabela-contagem {
-	color: (var(--cinzado));
+	color: var(--cinzado);
 	font-size: 12.5px;
 }
 
@@ -1128,7 +1128,7 @@
 }
 
 .col-ponto {
-	max-width: 6px;
+	max-width: 280px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
@@ -1143,7 +1143,7 @@
 	font-size: 12px;
 }
 
-.co-previsao,
+.col-previsao,
 .col-leitura {
 	color: var(--cinzado);
 }
@@ -1199,7 +1199,7 @@
 .barra-critico {background-color: var(--vermelho);}
 .barra-atencao {background-color: var(--amarelo);}
 .barra-normal {background-color: var(--lima);}
-.barra-semçeitura {background-color: #C3CEC8;}
+.barra-semleitura {background-color: #C3CEC8;}
 
 .barra-limite {
 	position: absolute;
@@ -1237,7 +1237,7 @@
 	gap: 4px;
 }
 
-.daig-lista {
+.diag-lista {
 	display: flex;
 	flex-direction: column;
 	gap: 6px;
@@ -1288,8 +1288,8 @@
 	border-radius: 10px;
 }
 
-.seletor-priodo button {
-	padding: 4px 10xp;
+.seletor-periodo button {
+	padding: 4px 10px;
 	color: var(--cinzado);
 	font-size: 12.5px;
 	font-weight: 700;
@@ -1469,7 +1469,7 @@
 }
 
 /* CELULAR */
-@container coneteudo (width < 640px) {
+@container conteudo (width < 640px) {
 	.alerta {
 		grid-template-columns: minmax(0, 1fr); /* resumo em cima, fila embaixo */
 	}
