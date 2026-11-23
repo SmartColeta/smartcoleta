@@ -16,8 +16,8 @@
 
 	 <!-- defer: os scripts rodam depois que o HTML foi lido, nesta ordem.
 	  dados-exemplo.js primeiro (sai quando a dash ler o banco), depois dashboard.js -->
-	  <script src="../js/dashboard/dados-exemplo.js" defer></script>
-	  <script src="../js/dashboard.js" defer></script>
+		<script src="../js/dashboard/dados-exemplo.js" defer></script>
+		<script src="../js/dashboard/dashboard.js" defer></script>
 </head>
 
 <body>
@@ -35,6 +35,8 @@
 				<a class="barra-link barra-link-ativo" id="link-dashboard" href="/dashboard/dashboard.html" onclick="voltarVisaoGeral(); return false;">Dashboard</a>
 				<a class="barra-link" id="link-bairros" href="#bairros" onclick="abrirBairros(); return false;">Bairros</a>
 				<a class="barra-link" href="http://localhost:3300/">Compartimentos</a>
+				<button class="barra-link barra-link-botao" type="button" onclick="exportarCSV()">Exportar CSV</button>
+				<button class="barra-link barra-link-botao" type="button" onclick="reportarBug()">Reportar bug</button>
 			</nav>
 
 			<div class="barra-lateral-botoes">
@@ -60,10 +62,6 @@
 					</div>
 
 					<div class="painel-topo-info">
-						<div class="acoes-topo">
-							<button class="botao-acao" type="button" onclick="reportarBug()">Reportar bug</button>
-							<button class="botao-acao botao-acao-principal" type="button" onclick="exportarCSV()">Exportar CSV</button>
-						</div>
 						<p class="painel-atualizacao">
 							<span id="atualizacao-com" hidden>Última atualização às <strong id="atualizacao-hora"></strong> (<span id="atualizacao-ha"></span>)</span>
 							<span id="atualizacao-sem" hidden>Nenhuma atualização recebida</span>

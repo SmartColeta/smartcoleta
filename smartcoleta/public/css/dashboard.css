@@ -1528,17 +1528,122 @@ select {
 	}
 }
 
-#indicador-critico { background-color: var(--vermelho-etiqueta); }
+/* KPIs Crítico e Atenção: mesmas cores claras do card "Ação agora" */
+#indicador-critico { background-color: #FDF1F1; }
+#indicador-atencao { background-color: #FEF9E8; }
+
 #indicador-critico .indicador-titulo, #indicador-critico .indicador-dado,
-#indicador-critico .indicador-unidade, #indicador-critico .indicador-citado,
-#indicador-critico .indicador-citado strong, #indicador-critico .indicador-vazio { color: #fff; }
-
-#indicador-atencao { background-color: var(--amarelo); }
+#indicador-critico .indicador-unidade { color: var(--vermelho-texto); }
 #indicador-atencao .indicador-titulo, #indicador-atencao .indicador-dado,
-#indicador-atencao .indicador-unidade, #indicador-atencao .indicador-citado,
-#indicador-atencao .indicador-citado strong, #indicador-atencao .indicador-vazio { color: #3A2C00; }
+#indicador-atencao .indicador-unidade { color: var(--amarelo-texto); }
+#indicador-critico .indicador-citado, #indicador-atencao .indicador-citado,
+#indicador-critico .indicador-vazio, #indicador-atencao .indicador-vazio { color: #3E5248; }
+#indicador-critico .indicador-citado strong, #indicador-atencao .indicador-citado strong { color: var(--escuro); }
 
-#indicador-critico .ver-todos { color: #fff; background-color: rgba(255,255,255,0.22); }
-#indicador-critico .ver-todos:hover { border-color: #fff; }
-#indicador-atencao .ver-todos { color: #3A2C00; background-color: rgba(58,44,0,0.12); }
-#indicador-atencao .ver-todos:hover { border-color: #3A2C00; }
+/* "Ver todos" cinza nos dois */
+#indicador-critico .ver-todos, #indicador-atencao .ver-todos { color: #3E4A44; background-color: rgba(0,0,0,0.08); }
+#indicador-critico .ver-todos:hover, #indicador-atencao .ver-todos:hover { border-color: #3E4A44; }
+
+/* botões do menu lateral (Exportar CSV / Reportar bug) com a cara dos links */
+.barra-link-botao {
+	width: 100%;
+	text-align: left;
+	font-family: inherit;
+	background: none;
+	border: 0;
+	cursor: pointer;
+}
+.barra-link-botao:hover { background-color: var(--fundo); color: var(--escuro); }
+
+/* ==========================================================================
+   CARD "CONSULTAR COMPARTIMENTO" (selects + resultado)
+   ========================================================================== */
+.card-consulta {
+	overflow: hidden;
+}
+
+.consulta-selects {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px 14px;
+	margin-top: 10px;
+}
+
+.consulta-campo {
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 200px;
+	min-width: 0;
+	gap: 4px;
+	color: var(--cinzado);
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.consulta-campo select {
+	width: 100%;
+	min-width: 0;
+}
+
+/* a lista rola por dentro do card, então a página não cresce */
+.consulta-resultado {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	margin-top: 10px;
+	overflow-y: auto;
+}
+
+.consulta-item {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 10px 12px;
+	background-color: #fff;
+	border: 1.5px solid var(--borda);
+	border-radius: 12px;
+}
+
+/* linha de cima: situação, tipo do resíduo e sensor */
+.consulta-topo {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px 10px;
+}
+
+.consulta-topo .sensor-num {
+	margin-left: auto;
+}
+
+/* previsão, última leitura e limites: 3 colunas lado a lado */
+.consulta-dados {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 6px 10px;
+	margin: 0;
+}
+
+.consulta-dados > div {
+	min-width: 0;
+}
+
+.consulta-dados dt {
+	color: var(--cinzado);
+	font-size: 11px;
+	font-weight: 600;
+}
+
+.consulta-dados dd {
+	margin: 0;
+	color: var(--escuro);
+	font-size: 12.5px;
+	font-weight: 600;
+}
+
+.consulta-abrir {
+	align-self: flex-start;
+	margin-top: 10px;
+}
