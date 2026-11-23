@@ -772,10 +772,8 @@ select {
 	cursor: pointer;
 }
 
-.ver-todos:hover,
-.ver-todos[aria-expanded="true"] {
-	border-color: var(--verde);
-}
+.ver-todos { color: #3E4A44; background-color: rgba(0,0,0,0.06); /* resto igual */ }
+.ver-todos:hover, .ver-todos[aria-expanded="true"] { border-color: #3E4A44; }
 
 /* etiqueta de prioridade ao lado do tipo de resíduo: "Orgânico P1" */
 .prioridade {
@@ -1529,3 +1527,18 @@ select {
 		white-space: normal;
 	}
 }
+
+#indicador-critico { background-color: var(--vermelho-etiqueta); }
+#indicador-critico .indicador-titulo, #indicador-critico .indicador-dado,
+#indicador-critico .indicador-unidade, #indicador-critico .indicador-citado,
+#indicador-critico .indicador-citado strong, #indicador-critico .indicador-vazio { color: #fff; }
+
+#indicador-atencao { background-color: var(--amarelo); }
+#indicador-atencao .indicador-titulo, #indicador-atencao .indicador-dado,
+#indicador-atencao .indicador-unidade, #indicador-atencao .indicador-citado,
+#indicador-atencao .indicador-citado strong, #indicador-atencao .indicador-vazio { color: #3A2C00; }
+
+#indicador-critico .ver-todos { color: #fff; background-color: rgba(255,255,255,0.22); }
+#indicador-critico .ver-todos:hover { border-color: #fff; }
+#indicador-atencao .ver-todos { color: #3A2C00; background-color: rgba(58,44,0,0.12); }
+#indicador-atencao .ver-todos:hover { border-color: #3A2C00; }

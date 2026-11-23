@@ -2,22 +2,22 @@
 <html lang="pt-BR">
 
 <head>
-	<meta charset="utf-8" />
-	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>SmartColeta | Monitoramento da coleta de resíduos</title>
 	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
-	<!-- Importando icone da aba do navegador -->
-	<link rel="icon" href="/logos/smartcoleta-logo.svg">
+	<!-- Importando o ícone da aba do navegador-->
+	 <link rel="icon" href="../logos/smartcoleta-logo.svg">
 
-	<link rel="preconnect" href="https://fonts.googleapis.com">
-	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap">
-	<link rel="stylesheet" href="/css/dashboard.css">
+	 <link rel="preconnect" href="https://fonts.googleapis.com">
+	 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap">
+	 <link rel="stylesheet" href="../css/dashboard.css">
 
-	<!-- defer: os scripts rodam depois que o HTML foi lido, nesta ordem.
-	     dados-exemplo.js primeiro (sai quando a dash ler o banco), depois dashboard.js -->
-	<script src="/js/dashboard/dados-exemplo.js" defer></script>
-	<script src="/js/dashboard.js" defer></script>
+	 <!-- defer: os scripts rodam depois que o HTML foi lido, nesta ordem.
+	  dados-exemplo.js primeiro (sai quando a dash ler o banco), depois dashboard.js -->
+	  <script src="../js/dashboard/dados-exemplo.js" defer></script>
+	  <script src="../js/dashboard.js" defer></script>
 </head>
 
 <body>
@@ -25,171 +25,284 @@
 
 		<aside class="barra-lateral">
 			<div class="barra-lateral-logo">
-				<div class="barra-lateral-logo-marca">
-					<object data="/logos/isologo.svg" class="barra-lateral-logo-icone" type="image/svg+xml"></object>
-				</div>
-				<p class="barra-lateral-logo-nome">Smart<span>Coleta</span></p>
+			<div class="barra-lateral-logo-marca">
+				<object data="../logos/isologo.svg" class="barra-lateral-logo-icone" type="image/svg+xml"></object>
+			</div>
+			<p class="barra-lateral-logo-nome">Smart<span>Coleta</span></p>
 			</div>
 
 			<nav class="barra-lateral-menu">
-				<a class="barra-link barra-link-ativo" href="/dashboard/dashboard.html">Dashboard</a>
+				<a class="barra-link barra-link-ativo" id="link-dashboard" href="/dashboard/dashboard.html" onclick="voltarVisaoGeral(); return false;">Dashboard</a>
+				<a class="barra-link" id="link-bairros" href="#bairros" onclick="abrirBairros(); return false;">Bairros</a>
 				<a class="barra-link" href="http://localhost:3300/">Compartimentos</a>
 			</nav>
 
 			<div class="barra-lateral-botoes">
 				<button class="barra-botao barra-botao-perfil">Perfil</button>
 				<button class="barra-botao barra-botao-config">Configurações</button>
-				<a href="/index.html">
-					<button class="barra-botao barra-botao-perfil">Sair</button>
-				</a>
+				<a class="barra-botao barra-botao-perfil" href="/index.html">Sair</a>
 			</div>
 		</aside>
 
 		<main class="conteudo">
 			<div class="painel">
 
-				<!-- TOPO: título, cidade e hora da última leitura -->
-				<header class="painel-topo">
-					<div class="painel-topo-textos">
+				<!-- TOPO: título, cidade e hora da última atualização -->
+				 <header class="painel-topo">
+					<div class="painel-topo-texto">
 						<button class="botao-voltar" type="button" id="botao-voltar" hidden onclick="voltarVisaoGeral()">&larr; Visão geral</button>
-						<h1 class="painel-titulo" id="painel-titulo">Monitoramento das lixeiras</h1>
-						<p class="painel-subtitulo" id="painel-subtitulo"></p>
+						<h1 class="painel-titulo">
+							<span id="titulo-geral">Monitoramento da coleta de resíduos</span>
+							<span id="titulo-ponto" hidden><span id="titulo-rua"></span> · <span id="titulo-bairro"></span></span>
+						</h1>
+						<p class="painel-subtitulo" id="subtitulo-geral"><span class="texto-cidade"></span> · <span id="subtitulo-pontos"></span> pontos de coleta · <span id="subtitulo-compartimentos"></span> compartimentos</p>
+						<p class="painel-subtitulo" id="subtitulo-ponto" hidden>Ponto de coleta <span id="subtitulo-id-ponto"></span> · <span id="subtitulo-qtd-ponto"></span> compartimentos · <span class="texto-cidade"></span></p>
 					</div>
 
 					<div class="painel-topo-info">
-						<p class="painel-atualizacao" id="painel-atualizacao"></p>
+						<div class="acoes-topo">
+							<button class="botao-acao" type="button" onclick="reportarBug()">Reportar bug</button>
+							<button class="botao-acao botao-acao-principal" type="button" onclick="exportarCSV()">Exportar CSV</button>
+						</div>
+						<p class="painel-atualizacao">
+							<span id="atualizacao-com" hidden>Última atualização às <strong id="atualizacao-hora"></strong> (<span id="atualizacao-ha"></span>)</span>
+							<span id="atualizacao-sem" hidden>Nenhuma atualização recebida</span>
+						</p>
 						<!-- Só para os dados de exemplo: some quando a dash ler o banco -->
-						<label class="cenario" id="cenario-caixa">
+						 <label class="cenario" id="cenario-caixa">
 							Dados de exemplo
 							<select id="cenario" onchange="trocarCenario()">
 								<option value="10">10 pontos · 30 compartimentos (POC)</option>
 								<option value="40">40 pontos · 120 compartimentos</option>
 							</select>
-						</label>
+						 </label>
 					</div>
-				</header>
+				 </header>
 
-				<!-- ======================= VISÃO GERAL DA CIDADE ======================= -->
-				<section class="visao" id="visao-geral">
+				 <!-- ======================= VISÃO GERAL DA CIDADE ======================= -->
+				  <section class="visao" id="visao-geral">
 
 					<div class="linha-topo">
 						<!-- ALERTA: a decisão do momento ("onde mando o caminhão?") -->
-						<div class="card alerta" id="alerta">
+						 <div class="card alerta" id="alerta">
 							<div class="alerta-resumo">
-								<p class="alerta-rotulo" id="alerta-rotulo"></p>
+								<p class="alerta-rotulo" id="alerta-rotulo" hidden>
+									<svg class="icone" data-estado="critico atencao" hidden viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3 2 21h20L12 3Z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><path d="M12 10v5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="18" r="1.4" fill="currentColor"/></svg>
+									<span data-estado="critico" hidden>Ação agora</span>
+									<span data-estado="atencao" hidden>Programar coleta</span>
+									<span data-estado="normal" hidden>Tudo em ordem</span>
+								</p>
 								<p class="alerta-numero" id="alerta-numero"></p>
-								<h2 class="alerta-titulo" id="alerta-titulo"></h2>
-								<p class="alerta-texto" id="alerta-texto"></p>
+								<p class="alerta-titulo">
+									<span data-estado="critico normal" hidden><span id="alerta-palavra-coletar" data-um="ponto" data-varios="pontos">pontos</span> para coletar</span>
+									<span data-estado="atencao" hidden><span id="alerta-palavra-atencao" data-um="ponto" data-varios="pontos">pontos</span> em atenção</span>
+								</p>
+								<p class="alerta-texto">
+									<span data-estado="critico" hidden><strong><span id="alerta-qtd-criticos"></span> <span id="alerta-palavra-criticos" data-um="crítico" data-varios="críticos">críticos</span></strong>: coletar agora.<br><span id="alerta-texto-atencao"><strong><span id="alerta-qtd-atencao"></span> em atenção</strong>: incluir na mesma rota.</span></span>
+									<span data-estado="atencao" hidden>Nenhum crítico. Programe a coleta destes pontos antes que cheguem ao limite crítico.</span>
+									<span data-estado="normal" hidden>Todos os compartimentos estão abaixo do limite de atenção.</span>
+								</p>
 							</div>
 							<div class="alerta-fila">
-								<p class="fila-legenda" id="fila-legenda"></p>
+								<p class="fila-legenda">
+									<span id="fila-legenda-alerta">Ordem sugerida: situação, depois prioridade do resíduo</span>
+									<span id="fila-legenda-proximos" hidden>Próximos a entrar em atenção</span>
+								</p>
 								<!-- um botão por ponto, na ordem de urgência (montado pelo script) -->
-								<ol class="fila" id="fila"></ol>
-								<button class="fila-ver-todos" type="button" id="fila-ver-todos" hidden onclick="mostrarPontosEmAlerta()"></button>
+								 <ol class="fila" id="fila"></ol>
 							</div>
-						</div>
+						 </div>
 
-						<!-- INDICADORES: quantidade de SENSORES (= compartimentos) em cada situação.
-						     Cada um cita o sensor mais urgente e tem "Ver todos" (montado pelo script). -->
-						<div class="indicadores" id="indicadores">
+						 <!-- INDICADORES: quantidade de SENSORES (= compartimentos) em cada situação.
+						  Cada um cita o sensor mais urgente e tem "Ver todos" -->
+						  <div class="indicadores" id="indicadores">
 							<div class="indicador indicador-duplo">
-								<div class="indicador-metade" id="indicador-critico"></div>
-								<div class="indicador-metade" id="indicador-atencao"></div>
+								<div class="indicador-metade" id="indicador-critico">
+									<span class="indicador-cabecalho">
+										<span class="indicador-titulo">Crítico</span>
+										<button class="ver-todos" type="button" hidden aria-expanded="false" aria-controls="painel-lista" onclick="alternarLista('critico', this)">Ver todos (<span class="ver-todos-qtd"></span>)</button>
+									</span>
+									<span class="indicador-linha">
+										<span class="indicador-dado"></span>
+										<span class="indicador-unidade" data-um="ponto" data-varios="pontos">pontos</span>
+									</span>
+									<span class="indicador-citado citado" hidden><strong class="citado-rua"></strong> · <span class="citado-bairro"></span> · <span class="citado-leitura"><span class="citado-tipo"></span> <span class="citado-nivel"></span>%</span><span class="citado-parado"></span></span>
+									<span class="indicador-citado indicador-vazio" hidden>Nenhum ponto em nível crítico</span>
+								</div>
+								<div class="indicador-metade" id="indicador-atencao">
+									<span class="indicador-cabecalho">
+										<span class="indicador-titulo">Atenção</span>
+										<button class="ver-todos" type="button" hidden aria-expanded="false" aria-controls="painel-lista" onclick="alternarLista('atencao', this)">Ver todos (<span class="ver-todos-qtd"></span>)</button>
+									</span>
+									<span class="indicador-linha">
+										<span class="indicador-dado"></span>
+										<span class="indicador-unidade" data-um="ponto" data-varios="pontos">pontos</span>
+									</span>
+									<span class="indicador-citado citado" hidden><strong class="citado-rua"></strong> · <span class="citado-bairro"></span> · <span class="citado-leitura"><span class="citado-tipo"></span> <span class="citado-nivel"></span>%</span><span class="citado-parado"></span></span>
+									<span class="indicador-citado indicador-vazio" hidden>Nenhum ponto em atenção</span>
+								</div>
 							</div>
-							<div class="indicador" id="indicador-breve"></div>
-							<div class="indicador" id="indicador-semleitura"></div>
-						</div>
+							<div class="indicador" id="indicador-breve">
+								<span class="indicador-cabecalho">
+									<span class="indicador-titulo">Próximas 6 h</span>
+									<button class="ver-todos" type="button" hidden aria-expanded="false" aria-controls="painel-lista" onclick="alternarLista('breve', this)">Ver todos (<span class="ver-todos-qtd"></span>)</button>
+								</span>
+								<span class="indicador-linha">
+									<span class="indicador-dado"></span>
+									<span class="indicador-unidade" data-um="ponto" data-varios="pontos">pontos</span>
+									<span class="indicador-descricao">acima de <span id="breve-pct"></span>% e entram em atenção</span>
+								</span>
+								<span class="indicador-citado citado" hidden><strong class="citado-rua"></strong> · <span class="citado-bairro"></span> · <span class="citado-leitura"><span class="citado-tipo"></span> <span class="citado-nivel"></span>%</span><span class="citado-parado"></span></span>
+								<span class="indicador-citado indicador-vazio" hidden>Nenhum ponto entra em atenção nas próximas 6 h</span>
+							</div>
+							<div class="indicador" id="indicador-semleitura">
+								<span class="indicador-cabecalho">
+									<span class="indicador-titulo">Pontos sem leitura</span>
+									<button class="ver-todos" type="button" hidden aria-expanded="false" aria-controls="painel-lista" onclick="alternarLista('semleitura', this)">Ver todos (<span class="ver-todos-qtd"></span>)</button>
+								</span>
+								<span class="indicador-linha">
+									<span class="indicador-dado"></span>
+									<span class="indicador-unidade" data-um="ponto" data-varios="pontos">pontos</span>
+									<span class="indicador-status indicador-status-critico" id="semleitura-etiqueta" hidden>Pontos: <span id="semleitura-numeros"></span></span>
+									<span class="indicador-descricao"><span id="pct-com-leitura"></span>% com leitura</span>
+								</span>
+								<span class="indicador-citado citado" hidden><strong class="citado-rua"></strong> · <span class="citado-bairro"></span> · <span class="citado-leitura"><span class="citado-tipo"></span> <span class="citado-nivel"></span>%</span><span class="citado-parado"></span></span>
+								<span class="indicador-citado indicador-vazio" hidden>Nenhum ponto com sensor sem leitura</span>
+							</div>
+						  </div>
 					</div>
 
 					<div class="linha-detalhe linha-detalhe-geral">
-						<!-- TABELA COM TODOS OS COMPARTIMENTOS (1 sensor por compartimento) -->
-						<div class="card card-tabela" id="card-tabela">
+						<!-- CONSULTA: escolher o ponto de coleta e o compartimento (substitui a tabela) -->
+						 <div class="card card-consulta" id="card-consulta">
 							<div class="card-cabecalho">
-								<h2 class="card-titulo">Todos os compartimentos</h2>
-								<div class="filtros">
-									<input class="filtro-busca" type="search" id="filtro-busca" placeholder="Buscar rua, bairro ou sensor"
-										aria-label="Buscar rua, bairro ou sensor" oninput="aoBuscar()">
-									<select class="filtro-bairro" id="filtro-bairro" aria-label="Filtrar por bairro" onchange="aoEscolherBairro()"></select>
-								</div>
+								<h2 class="card-titulo">Consultar compartimento</h2>
+								<p class="card-subtitulo" id="consulta-bairro" hidden>Bairro: <strong id="consulta-bairro-nome"></strong> · <button type="button" class="link" onclick="limparBairro()">limpar</button></p>
 							</div>
-
-							<!-- filtros por situação, com a quantidade de compartimentos em cada uma -->
-							<div class="chips-linha">
-								<div class="chips" id="chips"></div>
-								<p class="tabela-contagem" id="tabela-contagem"></p>
+							<div class="consulta-selects">
+								<label class="consulta-campo">Ponto de coleta
+									<select class="filtro-bairro" id="select-ponto" onchange="aoEscolherPonto()"></select>
+								</label>
+								<label class="consulta-campo">Compartimento
+									<select class="filtro-bairro" id="select-compartimento" onchange="renderizarConsultaResultado()" disabled></select>
+								</label>
 							</div>
+							<p class="tabela-vazia" id="consulta-vazia">Escolha um ponto de coleta para ver os compartimentos.</p>
+							<div class="consulta-resultado" id="consulta-resultado"></div>
+							<button class="link consulta-abrir" type="button" id="consulta-abrir" hidden onclick="abrirPontoSelecionado()">Abrir detalhes do ponto &rarr;</button>
+						 </div>
 
-							<div class="tabela-rolagem">
-								<table class="tabela">
-									<thead>
-										<tr>
-											<th><button type="button" data-campo="urgencia" onclick="ordenarPor('urgencia')">Situação</button></th>
-											<th><button type="button" data-campo="ponto" onclick="ordenarPor('ponto')">Ponto de coleta</button></th>
-											<th><button type="button" data-campo="compartimento" onclick="ordenarPor('compartimento')">Compartimento</button></th>
-											<th><button type="button" data-campo="nivel" onclick="ordenarPor('nivel')">Nível</button></th>
-											<th><button type="button" data-campo="previsao" onclick="ordenarPor('previsao')">Previsão</button></th>
-											<th class="col-leitura"><button type="button" data-campo="leitura" onclick="ordenarPor('leitura')">Última atualização às </button></th>
-										</tr>
-									</thead>
-									<tbody id="tabela-corpo"></tbody>
-								</table>
-								<p class="tabela-vazia" id="tabela-vazia" hidden>Nenhum compartimento com esses filtros.</p>
-							</div>
-						</div>
-
-						<!-- GRÁFICO POR BAIRRO: onde estão os pontos em alerta -->
-						<div class="card">
+						 <!-- GRÁFICO POR BAIRRO: onde estão os pontos em alerta -->
+						  <div class="card">
 							<h2 class="card-titulo">Pontos por bairro</h2>
-							<p class="card-subtitulo">Clique num bairro para filtrar a tabela</p>
+							<p class="card-subtitulo">Clique num bairro para filtrar a consulta · <button type="button" class="link" onclick="abrirBairros()">ver todos os bairros</button></p>
 							<div class="grafico">
 								<canvas id="graficoBairros"></canvas>
 							</div>
+						  </div>
+					</div>
+				  </section>
+
+				  <!-- ======================= VISÃO DE TODOS OS BAIRROS ======================= -->
+				   <section class="visao" id="visao-bairros" hidden>
+					<div class="card">
+						<h2 class="card-titulo">Todos os bairros</h2>
+						<p class="card-subtitulo"><span id="bairros-qtd"></span> bairros · mais críticos primeiro · clique num bairro para consultar os pontos dele</p>
+						<div class="tabela-rolagem">
+							<table class="tabela tabela-bairros">
+								<thead>
+									<tr>
+										<th>Bairro</th>
+										<th>Pontos</th>
+										<th>Compartimentos</th>
+										<th>Crítico</th>
+										<th>Atenção</th>
+										<th>Normal</th>
+										<th>Sem leitura</th>
+										<th>Ocupação média</th>
+									</tr>
+								</thead>
+								<tbody id="bairros-corpo"></tbody>
+							</table>
 						</div>
 					</div>
-				</section>
+				   </section>
 
-				<!-- ======================= VISÃO DE UM PONTO DE COLETA ======================= -->
-				<section class="visao" id="visao-ponto" hidden>
+				  <!-- ======================= VISÃO DE UM PONTO DE COLETA ======================= -->
+				   <section class="visao" id="visao-ponto" hidden>
 					<div class="linha-topo">
 						<!-- DIAGNÓSTICO: a decisão para este ponto e o motivo -->
-						<div class="card alerta diagnostico" id="diagnostico">
-							<p class="alerta-rotulo" id="diag-rotulo"></p>
-							<h2 class="alerta-titulo" id="diag-titulo"></h2>
-							<p class="alerta-texto" id="diag-texto"></p>
+						 <div class="card alerta diagnostico" id="diagnostico">
+							<p class="alerta-rotulo">
+								<svg class="icone" data-estado="critico atencao" hidden viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3 2 21h20L12 3Z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><path d="M12 10v5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="18" r="1.4" fill="currentColor"/></svg>
+								<span data-estado="critico" hidden>Ação agora</span>
+								<span data-estado="atencao" hidden>Programar coleta</span>
+								<span data-estado="semleitura" hidden>Manutenção</span>
+								<span data-estado="normal" hidden>Sem necessidade de coleta</span>
+							</p>
+							<h2 class="alerta-titulo">
+								<span data-estado="critico" hidden>Coletar agora: <span class="diag-gatilho-tipo"></span> em <span class="diag-gatilho-nivel"></span>%</span>
+								<span data-estado="atencao" hidden>Incluir na próxima rota: <span class="diag-gatilho-tipo"></span> em <span class="diag-gatilho-nivel"></span>%</span>
+								<span data-estado="semleitura" hidden>Sem leitura dos sensores</span>
+								<span data-estado="normal" hidden>Todos os compartimentos abaixo do limite de atenção</span>
+							</h2>
+							<p class="alerta-texto">
+								<span data-estado="critico" hidden>Passou do limite crítico (<span class="diag-limite-critico"></span>%)<span class="diag-fica"> e fica <span class="diag-previsao"></span></span>. O caminhão recolhe os <span class="diag-qtd"></span> compartimentos do ponto.</span>
+								<span data-estado="atencao" hidden>Passou do limite de atenção (<span class="diag-limite-atencao"></span>%)<span class="diag-chega"> e chega ao <span class="diag-previsao"></span></span>. O caminhão recolhe os <span class="diag-qtd"></span> compartimentos do ponto.</span>
+								<span data-estado="semleitura" hidden>Verifique os sensores no local antes de decidir a coleta.</span>
+								<span data-estado="normal" hidden><span class="diag-com-previsao">O primeiro a chegar ao limite é o <span class="diag-gatilho-tipo"></span>: <span class="diag-previsao"></span>.</span><span class="diag-sem-previsao">Nenhum compartimento enchendo no momento.</span></span>
+								<strong id="diag-aviso-semleitura" hidden>Há sensor sem leitura neste ponto.</strong>
+							</p>
 							<ul class="diag-lista" id="diag-lista"></ul>
-						</div>
+						 </div>
 
-						<!-- ÚLTIMA COLETA: vem da tabela N:M coleta_compartimento (consulta C4) -->
-						<div class="card coleta">
+						 <!-- ÚLTIMA COLETA: vem de tabela N:M coleta_compartimento (consulta C4) -->
+						  <div class="card coleta">
 							<h2 class="card-titulo">Última coleta</h2>
-							<p class="coleta-data" id="coleta-data"></p>
-							<p class="card-subtitulo" id="coleta-ha"></p>
+							<p class="coleta-data"><span id="coleta-data"></span><span id="coleta-nenhuma" hidden>Nenhuma</span></p>
+							<p class="card-subtitulo"><span id="coleta-ha-caixa"><span id="coleta-ha"></span> · nível de cada compartimento na hora da coleta</span><span id="coleta-sem" hidden>Este ponto ainda não teve coleta registrada.</span></p>
 							<ul class="coleta-itens" id="coleta-itens"></ul>
-							<p class="coleta-nota" id="coleta-nota"></p>
-						</div>
+							<p class="coleta-nota" id="coleta-nota" hidden>
+								<span id="coleta-nota-tarde" hidden>Coletada com compartimento já em nível crítico: vale antecipar a próxima.</span>
+								<span id="coleta-nota-ok" hidden>Coletada antes do nível crítico.</span>
+							</p>
+						  </div>
 					</div>
 
 					<div class="linha-detalhe linha-detalhe-ponto">
-						<!-- HISTÓRICO: uma linha por compartimento, no período escolhido (consultas C3a a C3d) -->
-						<div class="card">
+						<!-- HISTÓRICO: uma linha por compartimento, no período escolhido (consulta C3a a C3D) -->
+						 <div class="card">
 							<div class="card-cabecalho">
 								<div>
 									<h2 class="card-titulo">Histórico por compartimento</h2>
-									<p class="card-subtitulo" id="historico-subtitulo"></p>
+									<p class="card-subtitulo" id="historico-subtitulo">
+										<span data-estado="24h">Uma leitura a cada 15 min</span>
+										<span data-estado="7d" hidden>Maior nível de cada hora</span>
+										<span data-estado="30d" hidden>Maior nível de cada 6 h</span>
+										<span data-estado="90d" hidden>Maior nível de cada dia</span>
+									</p>
 								</div>
-								<div class="seletor-periodo" id="seletor-periodo" role="group" aria-label="Período do histórico"></div>
-							</div>
-							<div class="grafico">
-								<canvas id="graficoHistorico"></canvas>
-							</div>
-						</div>
+								<div class="seletor-periodo" id="seletor-periodo" role="group" aria-label="Período do histórico">
+									<button type="button" class="ativo" aria-pressed="true" data-periodo="24h" onclick="escolherPeriodo('24h')">24 h</button>
+									<button type="button" aria-pressed="false" data-periodo="7d" onclick="escolherPeriodo('7d')">7 dias</button>
+									<button type="button" aria-pressed="false" data-periodo="30d" onclick="escolherPeriodo('30d')">30 dias</button>
+									<button type="button" aria-pressed="false" data-periodo="90d" onclick="escolherPeriodo('90d')">90 dias</button>
+								</div>
+								</div>
+								<div class="grafico">
+									<canvas id="graficoHistorico"></canvas>
+								</div>
+						 </div>
 
-						<!-- LEITURAS DO DIA: todas as leituras do ponto na data escolhida (consulta C6) -->
-						<div class="card">
+						 <!-- LEITURAS DO DIA: todas as leituras do ponto na data escolhida (consulta C6) -->
+						  <div class="card">
 							<div class="card-cabecalho">
 								<div>
 									<h2 class="card-titulo">Leituras do dia</h2>
-									<p class="card-subtitulo" id="leituras-contagem"></p>
+									<p class="card-subtitulo">
+										<span id="leituras-com"><span id="leituras-qtd"></span> <span id="leituras-palavra" data-um="leitura" data-varios="leituras">leituras</span> em <span class="leituras-dia"></span> · mais nova primeiro</span>
+										<span id="leituras-sem" hidden>Escolha outra data</span>
+									</p>
 								</div>
 								<input class="filtro-data" type="date" id="leituras-data" aria-label="Data das leituras" onchange="aoEscolherData()">
 							</div>
@@ -207,28 +320,102 @@
 									<tbody id="leituras-corpo"></tbody>
 								</table>
 							</div>
-							<p class="tabela-vazia" id="leituras-vazia" hidden></p>
-						</div>
+							<p class="tabela-vazia" id="leituras-vazia" hidden>Nenhuma leitura em <span class="leituras-dia"></span></p>
+						 </div>
 					</div>
-				</section>
+				   </section>
 			</div>
 		</main>
 	</div>
-
+	
 	<!-- PAINEL "VER TODOS": lista completa de um indicador (montado pelo script).
-	     Fica ancorado ao card que abriu; em tela pequena vira um modal. -->
-	<div class="painel-lista-fundo" id="painel-lista-fundo" hidden></div>
-	<div class="painel-lista" id="painel-lista" role="dialog" aria-labelledby="painel-lista-titulo" hidden>
-		<div class="painel-lista-cabecalho">
-			<h2 class="painel-lista-titulo" id="painel-lista-titulo"></h2>
-			<button class="painel-lista-fechar" type="button" aria-label="Fechar lista" onclick="fecharLista()">&times;</button>
+	 	 Fica ancorado ao card que abriu; em tela pequena vira um modal -->
+		 <div class="painel-lista-fundo" id="painel-lista-fundo" hidden></div>
+		 <div class="painel-lista" id="painel-lista" role="dialog" aria-labelledby="painel-lista-titulo" hidden>
+			<div class="painel-lista-cabecalho">
+				<h2 class="painel-lista-titulo" id="painel-lista-titulo">
+					<span data-estado="critico" hidden>Pontos em nível crítico</span>
+					<span data-estado="atencao" hidden>Pontos em atenção</span>
+					<span data-estado="breve" hidden>Entram em atenção nas próximas 6 h (acima de <span id="lista-breve-pct"></span>%)</span>
+					<span data-estado="semleitura" hidden>Pontos com sensor sem leitura</span>
+					(<span id="painel-lista-qtd"></span>)
+				</h2>
+				<button class="painel-lista-fechar" type="button" aria-label="Fechar lista" onclick="fecharLista()">&times;</button>
+			</div>
+			<p class="painel-lista-legenda">Mais urgente primeiro · clique num ponto para abri-lo</p>
+			<ul class="painel-lista-itens" id="painel-lista-itens"></ul>
+		 </div>
+
+	<ul id="ajuda-prioridade" hidden>
+		<li data-prioridade="1">Prioridade 1: coletar primeiro</li>
+		<li data-prioridade="2">Prioridade 2: coletar depois do orgânico</li>
+		<li data-prioridade="3">Prioridade 3: pode esperar mais</li>
+	</ul>
+
+	<template id="modelo-fila">
+		<li>
+			<button class="fila-item" type="button" data-titulo="Abrir {rua}">
+				<span class="fila-posicao"></span>
+				<span class="fila-local">
+					<span class="fila-rua"></span>
+					<span class="fila-bairro"></span>
+				</span>
+				<span class="fila-motivo"><span class="tipo-nome"></span> <span class="prioridade">P<span class="prioridade-num"></span></span> <strong><span class="fila-nivel"></span>%</strong></span>
+				<span class="fila-previsao"></span>
+				<span class="fila-seta" aria-hidden="true">&rsaquo;</span>
+			</button>
+		</li>
+	</template>
+
+	<template id="modelo-lista-item">
+		<li>
+			<button class="lista-item" type="button">
+				<span class="lista-sensor">Ponto <span class="lista-sensor-num"></span></span>
+				<span class="lista-local"><span class="lista-rua"></span> · <span class="lista-bairro"></span></span>
+				<span class="lista-tipo"><span class="tipo-nome"></span> <span class="prioridade">P<span class="prioridade-num"></span></span></span>
+				<span class="lista-detalhe"><span class="lista-parado"></span><span class="lista-com-leitura"><strong class="lista-nivel"><span class="lista-nivel-valor"></span>%</strong><span class="lista-previsao-caixa"> · <span class="lista-previsao"></span></span></span></span>
+			</button>
+		</li>
+	</template>
+
+	<template id="modelo-consulta">
+		<div class="consulta-item">
+			<div class="consulta-topo">
+				<span class="situacao"><span data-estado="critico">Crítico</span><span data-estado="atencao">Atenção</span><span data-estado="semleitura">Sem leitura</span><span data-estado="normal">Normal</span></span>
+				<strong><span class="tipo-nome"></span> <span class="prioridade">P<span class="prioridade-num"></span></span></strong>
+				<span class="sensor-num">sensor <span class="sensor-num-valor"></span></span>
+			</div>
+			<span class="nivel-celula"><span class="barra" data-titulo="Atenção a partir de {atencao}% · crítico a partir de {critico}%"><span class="barra-preenchimento"></span><span class="barra-limite barra-limite-atencao"></span><span class="barra-limite barra-limite-critico"></span></span><span class="nivel-texto"></span></span>
+			<dl class="consulta-dados">
+				<div><dt>Previsão</dt><dd class="col-previsao"></dd></div>
+				<div><dt>Última leitura</dt><dd class="leitura-ha"></dd></div>
+				<div><dt>Limites</dt><dd><span class="lim-atencao"></span>% / <span class="lim-critico"></span>%</dd></div>
+			</dl>
 		</div>
-		<p class="painel-lista-legenda">Mais urgente primeiro · clique num sensor para abrir o ponto</p>
-		<ul class="painel-lista-itens" id="painel-lista-itens"></ul>
-		<div class="painel-lista-rodape">
-			<button class="link" type="button" id="painel-lista-filtrar" onclick="filtrarPelaLista()">Filtrar na tabela</button>
-		</div>
-	</div>
+	</template>
+
+	<template id="modelo-diag-item">
+		<li class="diag-item">
+			<span class="diag-tipo"><span class="tipo-nome"></span> <span class="prioridade">P<span class="prioridade-num"></span></span></span>
+			<span class="barra" data-titulo="Atenção a partir de {atencao}% · crítico a partir de {critico}%"><span class="barra-preenchimento"></span><span class="barra-limite barra-limite-atencao"></span><span class="barra-limite barra-limite-critico"></span></span>
+			<span class="diag-nivel"></span>
+			<span class="diag-detalhe"><span class="diag-detalhe-semleitura">sensor <span class="diag-sensor"></span> <span class="diag-parado"></span></span><span class="diag-detalhe-leitura"><span class="diag-previsao-caixa"><span class="diag-previsao-item"></span> · </span>limites <span class="diag-lim-atencao"></span>% / <span class="diag-lim-critico"></span>%</span></span>
+		</li>
+	</template>
+
+	<template id="modelo-coleta-item">
+		<li><span><span class="tipo-nome"></span> <span class="prioridade">P<span class="prioridade-num"></span></span></span><strong><span class="coleta-nivel"></span>%</strong></li>
+	</template>
+
+	<template id="modelo-leitura">
+		<tr>
+			<td class="leitura-hora"></td>
+			<td><span class="tipo-nome"></span> <span class="prioridade">P<span class="prioridade-num"></span></span></td>
+			<td class="leitura-sensor"></td>
+			<td><span class="leitura-distancia"></span> cm</td>
+			<td><strong class="leitura-nivel"><span class="leitura-nivel-valor"></span>%</strong></td>
+		</tr>
+	</template>
 </body>
 
 </html>

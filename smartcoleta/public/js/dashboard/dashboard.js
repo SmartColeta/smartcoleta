@@ -16,72 +16,49 @@
 // ==================================================================
 let CIDADE = 'Campo Novo de Rondônia';
 let HORAS_EM_BREVE = 6;       // janela do indicador "Próximas 6 h" (a mesma da vw_resumo_prefeitura)
+let NIVEL_MINIMO_BREVE = 50;  // só entra em "Próximas 6 h" o compartimento normal com nível acima deste % (ex.: 50)
 let MAX_FILA = 5;             // quantos pontos aparecem no card de alerta
 let MAX_NA_ETIQUETA = 3;      // sensores sem leitura listados na etiqueta antes do "+n"
 let DIAS_DE_LEITURAS = 90;    // até quantos dias atrás o card "Leituras do dia" deixa escolher
 
 // a view devolve a situação escrita; a página usa uma chave curta
 let SITUACOES = { 'Critico': 'critico', 'Atencao': 'atencao', 'Sem leitura': 'semleitura', 'Normal': 'normal' };
-let NOMES = { critico: 'Crítico', atencao: 'Atenção', semleitura: 'Sem leitura', normal: 'Normal', breve: 'Próximas 6 h' };
 let CORES = { critico: '#D64545', atencao: '#F2B705', normal: '#62C540', semleitura: '#9AA9A1' };
 
-// tipos de resíduo: a prioridade vem do banco (tabela tipo_residuo); aqui ficam
-// só a cor do gráfico e o texto de ajuda da etiqueta
+// tipos de resíduo: a prioridade vem do banco (tabela tipo_residuo); aqui fica
+// só a cor do gráfico
 let TIPOS_RESIDUO = {
-	'Orgânico': { cor: '#8B5E34', ajuda: 'Prioridade 1: coletar primeiro' },
-	'Sem distinção': { cor: '#5E6B73', ajuda: 'Prioridade 2: coletar depois do orgânico' },
-	'Reciclável': { cor: '#2F7BC1', ajuda: 'Prioridade 3: pode esperar mais' }
+	'Orgânico': { cor: '#8B5E34' },
+	'Sem distinção': { cor: '#5E6B73' },
+	'Reciclável': { cor: '#2F7BC1' }
 };
 
 // períodos do histórico. A API só aceita estas quatro chaves e escolhe a
 // consulta pela chave (o valor da tela nunca entra no SQL)
 let PERIODOS = {
-	'24h': { rotulo: '24 h', consulta: 'C3a', horas: 24, subtitulo: 'Uma leitura a cada 15 min' },
-	'7d': { rotulo: '7 dias', consulta: 'C3b', horas: 7 * 24, subtitulo: 'Maior nível de cada hora' },
-	'30d': { rotulo: '30 dias', consulta: 'C3c', horas: 30 * 24, subtitulo: 'Maior nível de cada 6 h' },
-	'90d': { rotulo: '90 dias', consulta: 'C3d', horas: 90 * 24, subtitulo: 'Maior nível de cada dia' }
+	'24h': { consulta: 'C3a', horas: 24 },
+	'7d': { consulta: 'C3b', horas: 7 * 24 },
+	'30d': { consulta: 'C3c', horas: 30 * 24 },
+	'90d': { consulta: 'C3d', horas: 90 * 24 }
 };
 
 // os indicadores ao lado do alerta. "total" vem do resumo da prefeitura (C8);
 // a lista do "Ver todos" vem das linhas da C1, filtradas pelo MESMO critério
 let INDICADORES = {
-	critico: {
-		titulo: 'Crítico', listaTitulo: 'Sensores em nível crítico', chips: ['critico'],
-		total: function (r) { return r.compartimentosCriticos; },
-		filtro: function (c) { return c.situacao == 'critico'; },
-		vazio: 'Nenhum sensor em nível crítico'
-	},
-	atencao: {
-		titulo: 'Atenção', listaTitulo: 'Sensores em atenção', chips: ['atencao'],
-		total: function (r) { return r.compartimentosAtencao; },
-		filtro: function (c) { return c.situacao == 'atencao'; },
-		vazio: 'Nenhum sensor em atenção'
-	},
-	breve: {
-		titulo: 'Próximas 6 h', listaTitulo: 'Entram em atenção nas próximas 6 h', chips: ['breve'],
-		total: function (r) { return r.compartimentosProximas6h; },
-		filtro: function (c) { return c.emBreve; },
-		descricao: 'normais que entram em atenção',
-		vazio: 'Nenhum sensor entra em atenção nas próximas 6 h'
-	},
-	semleitura: {
-		titulo: 'Sensores sem leitura', listaTitulo: 'Sensores sem leitura', chips: ['semleitura'],
-		total: function (r) { return r.sensoresSemLeitura; },
-		filtro: function (c) { return c.situacao == 'semleitura'; },
-		vazio: 'Todos os sensores enviaram leitura nos últimos 30 min'
-	}
+	critico: { filtro: function (p) { return p.situacao == 'critico'; } },
+	atencao: { filtro: function (p) { return p.situacao == 'atencao'; } },
+	breve: { filtro: function (p) { return p.emBreve; } },
+	semleitura: { filtro: function (p) { return p.temSemLeitura; } }
 };
 
-// ícone de alerta (triângulo) usado na etiqueta do card "Ação agora"
-let ICONE_ALERTA = '<svg class="icone" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
-	'<path d="M12 3 2 21h20L12 3Z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/>' +
-	'<path d="M12 10v5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>' +
-	'<circle cx="12" cy="18" r="1.4" fill="currentColor"/></svg>';
+let temGraficos = typeof Chart != 'undefined';
 
-Chart.defaults.responsive = true;
-Chart.defaults.maintainAspectRatio = false; // o gráfico ocupa a altura do card
-Chart.defaults.font.family = "'DM Sans', Arial, sans-serif";
-Chart.defaults.color = '#5E7468';
+if (temGraficos) {
+	Chart.defaults.responsive = true;
+	Chart.defaults.maintainAspectRatio = false; // o gráfico ocupa a altura do card
+	Chart.defaults.font.family = "'DM Sans', Arial, sans-serif";
+	Chart.defaults.color = '#5E7468';
+}
 
 
 // ==================================================================
@@ -169,7 +146,7 @@ function prepararDados(dados) {
 			horas: linha.horasProximoLimite == null ? null : Number(linha.horasProximoLimite)
 		};
 		// "Próximas 6 h": o mesmo critério da coluna compartimentosProximas6h da view
-		c.emBreve = c.situacao == 'normal' && c.horas != null && c.horas <= HORAS_EM_BREVE;
+		c.emBreve = c.situacao == 'normal' && c.horas != null && c.horas <= HORAS_EM_BREVE && c.nivel >= NIVEL_MINIMO_BREVE;
 		compartimentos.push(c);
 
 		if (pontosPorId[c.idPonto] == undefined) {
@@ -188,6 +165,7 @@ function prepararDados(dados) {
 		ponto.gatilho = ordenados[0];
 		ponto.situacao = ordenados[0].situacao;
 		ponto.temSemLeitura = comLeitura.length < ponto.compartimentos.length;
+		ponto.emBreve = ponto.situacao == 'normal' && ponto.compartimentos.some(function (c) { return c.emBreve; });
 	}
 }
 
@@ -307,11 +285,6 @@ function textoPrevisao(c) {
 	return `${c.proximoLimite} em ${formatarHoras(c.horas)}`;
 }
 
-// rua e bairro vêm do cadastro: escapar antes de colocar no HTML
-function escapar(texto) {
-	return String(texto).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
 function semAcento(texto) {
 	return String(texto).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 }
@@ -325,22 +298,56 @@ function ruaSemNumero(rua) {
 	return rua.split(',')[0];
 }
 
-// tipo com a etiqueta de prioridade: "Orgânico P1"
-function rotuloTipo(tipo, prioridade) {
-	let config = TIPOS_RESIDUO[tipo];
-	let ajuda = config ? config.ajuda : `Prioridade ${prioridade}`;
-	return `${escapar(tipo)} <span class="prioridade" title="${ajuda}">P${prioridade}</span>`;
+function mostrar(elemento, visivel) {
+	elemento.toggleAttribute('hidden', !visivel);
 }
 
-// barra horizontal do nível, com um traço em cada limite
-function barraNivel(c) {
-	let largura = c.nivel == null ? 0 : c.nivel;
-	return `
-		<span class="barra" title="Atenção a partir de ${c.limiteAtencao}% · crítico a partir de ${c.limiteCritico}%">
-			<span class="barra-preenchimento barra-${c.situacao}" style="width:${largura}%"></span>
-			<span class="barra-limite barra-limite-atencao" style="left:${c.limiteAtencao}%"></span>
-			<span class="barra-limite barra-limite-critico" style="left:${c.limiteCritico}%"></span>
-		</span>`;
+function escrever(id, valor) {
+	document.getElementById(id).textContent = valor;
+}
+
+function escreverEm(raiz, seletor, valor) {
+	let itens = raiz.querySelectorAll(seletor);
+	for (let i = 0; i < itens.length; i++) {
+		itens[i].textContent = valor;
+	}
+}
+
+function mostrarEstado(raiz, estado) {
+	let itens = raiz.querySelectorAll('[data-estado]');
+	for (let i = 0; i < itens.length; i++) {
+		mostrar(itens[i], itens[i].dataset.estado.split(' ').indexOf(estado) != -1);
+	}
+}
+
+function aplicarPlural(elemento, qtd) {
+	elemento.textContent = plural(qtd, elemento.dataset.um, elemento.dataset.varios);
+}
+
+function aplicarTitulo(elemento, valores) {
+	elemento.title = elemento.dataset.titulo.replace(/\{(\w+)\}/g, function (trecho, chave) {
+		return valores[chave];
+	});
+}
+
+function clonar(idModelo) {
+	return document.getElementById(idModelo).content.firstElementChild.cloneNode(true);
+}
+
+function preencherTipo(raiz, tipo, prioridade) {
+	raiz.querySelector('.tipo-nome').textContent = tipo;
+	raiz.querySelector('.prioridade-num').textContent = prioridade;
+	let ajuda = document.querySelector(`#ajuda-prioridade [data-prioridade="${prioridade}"]`);
+	raiz.querySelector('.prioridade').title = ajuda ? ajuda.textContent : '';
+}
+
+function preencherBarra(barra, c) {
+	aplicarTitulo(barra, { atencao: c.limiteAtencao, critico: c.limiteCritico });
+	let preenchimento = barra.querySelector('.barra-preenchimento');
+	preenchimento.className = 'barra-preenchimento barra-' + c.situacao;
+	preenchimento.style.width = (c.nivel == null ? 0 : c.nivel) + '%';
+	barra.querySelector('.barra-limite-atencao').style.left = c.limiteAtencao + '%';
+	barra.querySelector('.barra-limite-critico').style.left = c.limiteCritico + '%';
 }
 
 
@@ -348,12 +355,17 @@ function barraNivel(c) {
 // TOPO
 // ==================================================================
 function renderizarTopo() {
-	document.getElementById('painel-subtitulo').innerHTML =
-		`${CIDADE} · ${resumo.totalPontos} pontos de coleta · ${resumo.totalCompartimentos} compartimentos`;
+	escreverEm(document, '.texto-cidade', CIDADE);
+	escrever('subtitulo-pontos', resumo.totalPontos);
+	escrever('subtitulo-compartimentos', resumo.totalCompartimentos);
 
-	document.getElementById('painel-atualizacao').innerHTML = resumo.ultimaLeitura
-		? `Última leitura às <strong>${formatarHora(lerData(resumo.ultimaLeitura))}</strong> (${formatarHaQuanto(resumo.minutosDesdeUltimaLeitura)})`
-		: 'Nenhuma leitura recebida';
+	let temLeitura = Boolean(resumo.ultimaLeitura);
+	mostrar(document.getElementById('atualizacao-com'), temLeitura);
+	mostrar(document.getElementById('atualizacao-sem'), !temLeitura);
+	if (temLeitura) {
+		escrever('atualizacao-hora', formatarHora(lerData(resumo.ultimaLeitura)));
+		escrever('atualizacao-ha', formatarHaQuanto(resumo.minutosDesdeUltimaLeitura));
+	}
 }
 
 
@@ -366,76 +378,51 @@ function renderizarAlerta() {
 	fila.sort(function (a, b) { return compararUrgencia(a.gatilho, b.gatilho); });
 
 	let card = document.getElementById('alerta');
-	let rotulo = document.getElementById('alerta-rotulo');
-	let total = resumo.pontosParaColetar;
+	let estado = resumo.pontosCriticos > 0 ? 'critico' : resumo.pontosAtencao > 0 ? 'atencao' : 'normal';
+	let total = estado == 'normal' ? 0 : resumo.pontosParaColetar;
 
-	if (resumo.pontosCriticos > 0) {
-		card.className = 'card alerta alerta-critico';
-		rotulo.innerHTML = ICONE_ALERTA + 'Ação agora';
-		document.getElementById('alerta-numero').innerHTML = total;
-		document.getElementById('alerta-titulo').innerHTML = plural(total, 'ponto para coletar', 'pontos para coletar');
-		document.getElementById('alerta-texto').innerHTML =
-			`<strong>${resumo.pontosCriticos} ${plural(resumo.pontosCriticos, 'crítico', 'críticos')}</strong>: coletar agora.<br>` +
-			(resumo.pontosAtencao > 0 ? `<strong>${resumo.pontosAtencao} em atenção</strong>: incluir na mesma rota.` : '');
-	} else if (resumo.pontosAtencao > 0) {
-		card.className = 'card alerta alerta-atencao';
-		rotulo.innerHTML = ICONE_ALERTA + 'Programar coleta';
-		document.getElementById('alerta-numero').innerHTML = total;
-		document.getElementById('alerta-titulo').innerHTML = plural(total, 'ponto em atenção', 'pontos em atenção');
-		document.getElementById('alerta-texto').innerHTML = 'Nenhum crítico. Programe a coleta destes pontos antes que cheguem ao limite crítico.';
-	} else {
-		card.className = 'card alerta alerta-normal';
-		rotulo.innerHTML = 'Tudo em ordem';
-		document.getElementById('alerta-numero').innerHTML = '0';
-		document.getElementById('alerta-titulo').innerHTML = 'pontos para coletar';
-		document.getElementById('alerta-texto').innerHTML = 'Todos os compartimentos estão abaixo do limite de atenção.';
-	}
+	card.className = 'card alerta alerta-' + estado;
+	mostrarEstado(card, estado);
+	mostrar(document.getElementById('alerta-rotulo'), true);
+	escrever('alerta-numero', total);
+	aplicarPlural(document.getElementById('alerta-palavra-coletar'), total);
+	aplicarPlural(document.getElementById('alerta-palavra-atencao'), total);
+	escrever('alerta-qtd-criticos', resumo.pontosCriticos);
+	aplicarPlural(document.getElementById('alerta-palavra-criticos'), resumo.pontosCriticos);
+	escrever('alerta-qtd-atencao', resumo.pontosAtencao);
+	mostrar(document.getElementById('alerta-texto-atencao'), resumo.pontosAtencao > 0);
 
 	// lista: se não há ponto em alerta, mostra os próximos a entrar em atenção
 	let lista = fila;
-	let legenda = 'Ordem sugerida: situação, depois prioridade do resíduo';
-	if (fila.length == 0) {
+	let proximos = fila.length == 0;
+	if (proximos) {
 		lista = pontos.filter(function (p) { return p.gatilho.horas != null; })
 			.sort(function (a, b) { return a.gatilho.horas - b.gatilho.horas; });
-		legenda = 'Próximos a entrar em atenção';
 	}
-	document.getElementById('fila-legenda').innerHTML = legenda;
+	mostrar(document.getElementById('fila-legenda-alerta'), !proximos);
+	mostrar(document.getElementById('fila-legenda-proximos'), proximos);
 
-	let html = '';
-	let mostrar = Math.min(lista.length, MAX_FILA);
-	for (let i = 0; i < mostrar; i++) {
+	let ol = document.getElementById('fila');
+	ol.replaceChildren();
+	let qtdNaFila = Math.min(lista.length, MAX_FILA);
+	for (let i = 0; i < qtdNaFila; i++) {
 		let ponto = lista[i];
 		let g = ponto.gatilho;
-		html += `
-			<li>
-				<button class="fila-item fila-item-${ponto.situacao}" type="button" onclick="abrirPonto(${ponto.idPonto})"
-					title="Abrir ${escapar(ponto.rua)}">
-					<span class="fila-posicao">${i + 1}</span>
-					<span class="fila-local">
-						<span class="fila-rua">${escapar(ponto.rua)}</span>
-						<span class="fila-bairro">${escapar(ponto.bairro)}</span>
-					</span>
-					<span class="fila-motivo">${rotuloTipo(g.tipo, g.prioridade)} <strong>${Math.round(g.nivel)}%</strong></span>
-					<span class="fila-previsao">${textoPrevisao(g)}</span>
-					<span class="fila-seta" aria-hidden="true">&rsaquo;</span>
-				</button>
-			</li>`;
+		let item = clonar('modelo-fila');
+		let botao = item.querySelector('.fila-item');
+		botao.classList.add('fila-item-' + ponto.situacao);
+		botao.onclick = function () { abrirPonto(ponto.idPonto); };
+		aplicarTitulo(botao, { rua: ponto.rua });
+		item.querySelector('.fila-posicao').textContent = i + 1;
+		item.querySelector('.fila-rua').textContent = ponto.rua;
+		item.querySelector('.fila-bairro').textContent = ponto.bairro;
+		preencherTipo(item.querySelector('.fila-motivo'), g.tipo, g.prioridade);
+		item.querySelector('.fila-nivel').textContent = Math.round(g.nivel);
+		item.querySelector('.fila-previsao').textContent = textoPrevisao(g);
+		ol.appendChild(item);
 	}
-	document.getElementById('fila').innerHTML = html;
 
-	let botaoTodos = document.getElementById('fila-ver-todos');
-	if (fila.length > MAX_FILA) {
-		botaoTodos.hidden = false;
-		botaoTodos.innerHTML = `Ver os ${fila.length} pontos na tabela &rarr;`;
-	} else {
-		botaoTodos.hidden = true;
-	}
 }
-
-function mostrarPontosEmAlerta() {
-	filtrarSituacao(['critico', 'atencao']);
-}
-
 
 // ==================================================================
 // INDICADORES (coluna ao lado do alerta) e painel "Ver todos"
@@ -443,57 +430,65 @@ function mostrarPontosEmAlerta() {
 
 // sensores de um indicador, do mais urgente para o menos urgente
 function listaDoIndicador(chave) {
-	return compartimentos.filter(INDICADORES[chave].filtro).sort(compararUrgencia);
+	return pontos.filter(INDICADORES[chave].filtro).sort(function (a, b) {
+		return compararUrgencia(a.gatilho, b.gatilho);
+	});
 }
 
-// frase do sensor citado: "Sensor 101 · Av. Tancredo Neves · Orgânico 94%"
-function fraseDoSensor(c) {
-	let detalhe = c.situacao == 'semleitura'
-		? formatarParado(c.minutosDesdeLeitura)
-		: `${escapar(c.tipo)} ${Math.round(c.nivel)}%`;
-	return `<strong>Sensor ${c.numeroSensor}</strong> · ${escapar(ruaSemNumero(c.rua))} · ${detalhe}`;
+// o compartimento que explica a presença do ponto no indicador
+function compartimentoCitado(chave, ponto) {
+	let teste = null;
+	if (chave == 'semleitura') teste = function (c) { return c.situacao == 'semleitura'; };
+	if (chave == 'breve') teste = function (c) { return c.emBreve; };
+	if (teste == null) return ponto.gatilho;
+	return ponto.compartimentos.filter(teste).sort(compararUrgencia)[0];
 }
 
-// cada indicador tem 3 linhas: título e "Ver todos" | quantidade | sensor citado
+// cada indicador tem 3 linhas: título e "Ver todos" | quantidade de PONTOS | ponto citado
 function renderizarIndicador(chave) {
-	let config = INDICADORES[chave];
-	let total = config.total(resumo);
 	let lista = listaDoIndicador(chave);
+	let total = lista.length;
 	let caixa = document.getElementById('indicador-' + chave);
 
-	let botao = total == 0 ? '' : `
-		<button class="ver-todos" type="button" aria-expanded="false" aria-controls="painel-lista"
-			onclick="alternarLista('${chave}', this)">Ver todos (${lista.length})</button>`;
+	let botao = caixa.querySelector('.ver-todos');
+	mostrar(botao, total != 0);
+	botao.setAttribute('aria-expanded', 'false');
+	caixa.querySelector('.ver-todos-qtd').textContent = total;
+	caixa.querySelector('.indicador-dado').textContent = total;
+	aplicarPlural(caixa.querySelector('.indicador-unidade'), total);
 
-	// ao lado do número: a etiqueta vermelha dos sensores parados ("Sem leitura: 127, 185 +2"),
-	// a % com leitura ou a explicação do indicador
-	let extra = '';
+	if (chave == 'breve') {
+		escrever('breve-pct', NIVEL_MINIMO_BREVE);
+	}
 	if (chave == 'semleitura') {
+		mostrar(document.getElementById('semleitura-etiqueta'), total > 0);
 		if (total > 0) {
-			let numeros = lista.slice(0, MAX_NA_ETIQUETA).map(function (c) { return c.numeroSensor; }).join(', ');
+			let ids = lista.slice(0, MAX_NA_ETIQUETA).map(function (p) { return p.idPonto; }).join(', ');
 			let resto = lista.length > MAX_NA_ETIQUETA ? ` +${lista.length - MAX_NA_ETIQUETA}` : '';
-			extra += `<span class="indicador-status indicador-status-critico">Sem leitura: ${numeros}${resto}</span>`;
+			escrever('semleitura-numeros', ids + resto);
 		}
-		extra += `<span class="indicador-descricao">${formatarNumero(Number(resumo.pctComLeitura), 0)}% com leitura</span>`;
-	} else if (config.descricao) {
-		extra = `<span class="indicador-descricao">${config.descricao}</span>`;
+		escrever('pct-com-leitura', pontos.length == 0 ? 0 : Math.round((pontos.length - total) / pontos.length * 100));
 	}
 
-	let citado = total == 0
-		? `<span class="indicador-citado indicador-vazio">${config.vazio}</span>`
-		: `<span class="indicador-citado" title="${fraseDoSensor(lista[0]).replace(/<[^>]+>/g, '')}">${fraseDoSensor(lista[0])}</span>`;
-
-	caixa.innerHTML = `
-		<span class="indicador-cabecalho">
-			<span class="indicador-titulo">${config.titulo}</span>
-			${botao}
-		</span>
-		<span class="indicador-linha">
-			<span class="indicador-dado">${total}</span>
-			<span class="indicador-unidade">${plural(total, 'sensor', 'sensores')}</span>
-			${extra}
-		</span>
-		${citado}`;
+	let citado = caixa.querySelector('.citado');
+	mostrar(citado, total != 0);
+	mostrar(caixa.querySelector('.indicador-vazio'), total == 0);
+	if (total != 0) {
+		let p = lista[0];
+		let c = compartimentoCitado(chave, p);
+		let semLeitura = c.situacao == 'semleitura';
+		citado.querySelector('.citado-rua').textContent = ruaSemNumero(p.rua);
+		citado.querySelector('.citado-bairro').textContent = p.bairro;
+		mostrar(citado.querySelector('.citado-leitura'), !semLeitura);
+		mostrar(citado.querySelector('.citado-parado'), semLeitura);
+		if (semLeitura) {
+			citado.querySelector('.citado-parado').textContent = formatarParado(c.minutosDesdeLeitura);
+		} else {
+			citado.querySelector('.citado-tipo').textContent = c.tipo;
+			citado.querySelector('.citado-nivel').textContent = Math.round(c.nivel);
+		}
+		citado.title = citado.innerText;
+	}
 }
 
 function renderizarIndicadores() {
@@ -511,27 +506,36 @@ function alternarLista(chave, botao) {
 		return;
 	}
 	fecharLista();
-	let config = INDICADORES[chave];
 	let lista = listaDoIndicador(chave);
 
-	let html = '';
+	let ul = document.getElementById('painel-lista-itens');
+	ul.replaceChildren();
 	for (let i = 0; i < lista.length; i++) {
-		let c = lista[i];
-		let detalhe = c.situacao == 'semleitura'
-			? formatarParado(c.minutosDesdeLeitura)
-			: `<strong class="nivel-${c.situacao}">${Math.round(c.nivel)}%</strong>${textoPrevisao(c) ? ' · ' + textoPrevisao(c) : ''}`;
-		html += `
-			<li>
-				<button class="lista-item" type="button" onclick="abrirPontoDaLista(${c.idPonto})">
-					<span class="lista-sensor">Sensor ${c.numeroSensor}</span>
-					<span class="lista-local">${escapar(c.rua)} · ${escapar(c.bairro)}</span>
-					<span class="lista-tipo">${rotuloTipo(c.tipo, c.prioridade)}</span>
-					<span class="lista-detalhe">${detalhe}</span>
-				</button>
-			</li>`;
+		let p = lista[i];
+		let c = compartimentoCitado(chave, p);
+		let item = clonar('modelo-lista-item');
+		let semLeitura = c.situacao == 'semleitura';
+		let previsao = textoPrevisao(c);
+		item.querySelector('.lista-item').onclick = function () { abrirPontoDaLista(c.idPonto); };
+		item.querySelector('.lista-sensor-num').textContent = p.idPonto;
+		item.querySelector('.lista-rua').textContent = p.rua;
+		item.querySelector('.lista-bairro').textContent = p.bairro;
+		preencherTipo(item.querySelector('.lista-tipo'), c.tipo, c.prioridade);
+		mostrar(item.querySelector('.lista-parado'), semLeitura);
+		mostrar(item.querySelector('.lista-com-leitura'), !semLeitura);
+		if (semLeitura) {
+			item.querySelector('.lista-parado').textContent = formatarParado(c.minutosDesdeLeitura);
+		} else {
+			item.querySelector('.lista-nivel').classList.add('nivel-' + c.situacao);
+			item.querySelector('.lista-nivel-valor').textContent = Math.round(c.nivel);
+			mostrar(item.querySelector('.lista-previsao-caixa'), previsao != '');
+			item.querySelector('.lista-previsao').textContent = previsao;
+		}
+		ul.appendChild(item);
 	}
-	document.getElementById('painel-lista-titulo').innerHTML = `${config.listaTitulo} (${lista.length})`;
-	document.getElementById('painel-lista-itens').innerHTML = html;
+	mostrarEstado(document.getElementById('painel-lista-titulo'), chave);
+	escrever('lista-breve-pct', NIVEL_MINIMO_BREVE);
+	escrever('painel-lista-qtd', lista.length);
 
 	let painel = document.getElementById('painel-lista');
 	painel.hidden = false;
@@ -582,13 +586,6 @@ function abrirPontoDaLista(idPonto) {
 	abrirPonto(idPonto);
 }
 
-// "Filtrar na tabela": aplica nos chips o mesmo critério da lista
-function filtrarPelaLista() {
-	let chips = INDICADORES[listaAberta.chave].chips;
-	fecharLista();
-	filtrarSituacao(chips);
-}
-
 // o painel fecha com Esc e com clique fora dele
 document.addEventListener('keydown', function (evento) {
 	if (evento.key == 'Escape' && listaAberta) {
@@ -608,161 +605,216 @@ window.addEventListener('resize', function () {
 
 
 // ==================================================================
-// TABELA DE COMPARTIMENTOS: filtros, chips e ordenação
+// CONSULTA: select de ponto de coleta e select de compartimento
+// (no lugar da antiga tabela "Todos os compartimentos")
 // ==================================================================
-function renderizarFiltros() {
-	// bairros em ordem alfabética
-	let bairros = [];
-	for (let i = 0; i < pontos.length; i++) {
-		if (bairros.indexOf(pontos[i].bairro) == -1) bairros.push(pontos[i].bairro);
+function renderizarConsulta() {
+	let select = document.getElementById('select-ponto');
+	let anterior = select.value;
+	select.replaceChildren(new Option('Escolha um ponto de coleta', ''));
+	let lista = pontos
+		.filter(function (p) { return filtro.bairro == '' || p.bairro == filtro.bairro; })
+		.sort(function (a, b) { return a.rua.localeCompare(b.rua, 'pt-BR'); });
+	for (let i = 0; i < lista.length; i++) {
+		select.add(new Option(`${lista[i].rua} · ${lista[i].bairro}`, lista[i].idPonto));
 	}
-	bairros.sort(function (a, b) { return a.localeCompare(b, 'pt-BR'); });
+	select.value = anterior;
+	if (select.selectedIndex < 0) select.selectedIndex = 0;
 
-	let opcoes = '<option value="">Todos os bairros</option>';
-	for (let i = 0; i < bairros.length; i++) {
-		opcoes += `<option value="${escapar(bairros[i])}">${escapar(bairros[i])}</option>`;
-	}
-	let select = document.getElementById('filtro-bairro');
-	select.innerHTML = opcoes;
-	select.value = filtro.bairro;
+	mostrar(document.getElementById('consulta-bairro'), filtro.bairro != '');
+	escrever('consulta-bairro-nome', filtro.bairro);
+	aoEscolherPonto();
 }
 
-function passaNaSituacao(c, situacao) {
-	if (situacao == 'breve') return c.emBreve;
-	return c.situacao == situacao;
-}
-
-function passaNosFiltros(c, ignorarSituacao) {
-	if (filtro.bairro != '' && c.bairro != filtro.bairro) return false;
-	if (filtro.busca != '') {
-		let texto = semAcento(`${c.rua} ${c.bairro} ${c.tipo} ${c.numeroSensor}`);
-		if (texto.indexOf(semAcento(filtro.busca)) == -1) return false;
-	}
-	if (!ignorarSituacao && filtro.situacoes.length > 0) {
-		let passa = false;
-		for (let i = 0; i < filtro.situacoes.length; i++) {
-			if (passaNaSituacao(c, filtro.situacoes[i])) passa = true;
+function aoEscolherPonto() {
+	let ponto = pontosPorId[document.getElementById('select-ponto').value];
+	let select = document.getElementById('select-compartimento');
+	let anterior = select.value;
+	select.replaceChildren(new Option('Todos os compartimentos do ponto', ''));
+	if (ponto != undefined) {
+		for (let i = 0; i < ponto.compartimentos.length; i++) {
+			let c = ponto.compartimentos[i];
+			select.add(new Option(`${c.tipo} (P${c.prioridade}) · sensor ${c.numeroSensor}`, c.idCompartimento));
 		}
-		if (!passa) return false;
 	}
-	return true;
+	select.disabled = ponto == undefined;
+	select.value = anterior;
+	if (select.selectedIndex < 0) select.selectedIndex = 0;
+	renderizarConsultaResultado();
 }
 
-function renderizarChips() {
-	// as quantidades respeitam a busca e o bairro, para o gestor ver o efeito do filtro
-	let qtd = { todos: 0, critico: 0, atencao: 0, breve: 0, semleitura: 0, normal: 0 };
-	for (let i = 0; i < compartimentos.length; i++) {
-		let c = compartimentos[i];
-		if (!passaNosFiltros(c, true)) continue;
-		qtd.todos++;
-		qtd[c.situacao]++;
-		if (c.emBreve) qtd.breve++;
-	}
-	let chips = ['critico', 'atencao', 'breve', 'semleitura', 'normal'];
-	let html = `<button type="button" class="chip ${filtro.situacoes.length == 0 ? 'chip-ativo' : ''}" onclick="filtrarSituacao([])">Todos <span>${qtd.todos}</span></button>`;
-	for (let i = 0; i < chips.length; i++) {
-		let s = chips[i];
-		let ativo = filtro.situacoes.length == 1 && filtro.situacoes[0] == s;
-		html += `<button type="button" class="chip chip-${s} ${ativo ? 'chip-ativo' : ''}" onclick="filtrarSituacao(['${s}'])">
-			<i></i>${NOMES[s]} <span>${qtd[s]}</span></button>`;
-	}
-	document.getElementById('chips').innerHTML = html;
-}
+function renderizarConsultaResultado() {
+	let ponto = pontosPorId[document.getElementById('select-ponto').value];
+	let idCompartimento = document.getElementById('select-compartimento').value;
+	let caixa = document.getElementById('consulta-resultado');
+	caixa.replaceChildren();
+	mostrar(document.getElementById('consulta-vazia'), ponto == undefined);
+	mostrar(document.getElementById('consulta-abrir'), ponto != undefined);
+	if (ponto == undefined) return;
 
-// comparação "natural" de cada coluna; o sentido inverte ao clicar de novo
-function compararPorCampo(a, b) {
-	let campo = ordem.campo;
-	let r = 0;
-	if (campo == 'urgencia') {
-		r = compararUrgencia(a, b);
-	} else if (campo == 'ponto') {
-		r = a.rua.localeCompare(b.rua, 'pt-BR') || a.idCompartimento - b.idCompartimento;
-	} else if (campo == 'compartimento') {
-		r = (a.prioridade - b.prioridade) || compararUrgencia(a, b);
-	} else if (campo == 'nivel') {
-		r = (b.nivel || 0) - (a.nivel || 0);
-	} else if (campo == 'previsao') {
-		r = (a.horas == null ? Infinity : a.horas) - (b.horas == null ? Infinity : b.horas);
-	} else if (campo == 'leitura') {
-		r = (b.minutosDesdeLeitura == null ? Infinity : b.minutosDesdeLeitura) - (a.minutosDesdeLeitura == null ? Infinity : a.minutosDesdeLeitura); // mais antiga primeiro
-	}
-	if (isNaN(r)) r = 0;
-	return r * ordem.sentido;
-}
-
-function renderizarTabela() {
-	let visiveis = compartimentos.filter(function (c) { return passaNosFiltros(c, false); });
-	visiveis.sort(compararPorCampo);
-
-	let html = '';
-	for (let i = 0; i < visiveis.length; i++) {
-		let c = visiveis[i];
-		let nivelTexto = c.nivel == null ? '—' : Math.round(c.nivel) + '%';
-		let leitura = c.dataHora ? formatarHaQuanto(c.minutosDesdeLeitura) : 'nunca';
-		html += `
-			<tr tabindex="0" onclick="abrirPonto(${c.idPonto})"
-				onkeydown="if (event.key == 'Enter') abrirPonto(${c.idPonto})"
-				title="Abrir ${escapar(c.rua)}">
-				<td><span class="situacao situacao-${c.situacao}">${NOMES[c.situacao]}</span></td>
-				<td class="col-ponto"><span class="ponto-rua">${escapar(c.rua)}</span><span class="ponto-bairro">${escapar(c.bairro)}</span></td>
-				<td>${rotuloTipo(c.tipo, c.prioridade)}<span class="sensor-num">sensor ${c.numeroSensor}</span></td>
-				<td><span class="nivel-celula">${barraNivel(c)}<span class="nivel-texto">${nivelTexto}</span></span></td>
-				<td class="col-previsao">${textoPrevisao(c) || '—'}</td>
-				<td class="col-leitura">${leitura}</td>
-			</tr>`;
-	}
-	document.getElementById('tabela-corpo').innerHTML = html;
-	document.getElementById('tabela-vazia').hidden = visiveis.length > 0;
-	document.getElementById('tabela-contagem').innerHTML =
-		visiveis.length == compartimentos.length
-			? `${compartimentos.length} compartimentos · mais urgente primeiro`
-			: `${visiveis.length} de ${compartimentos.length} · <button type="button" class="link" onclick="limparFiltros()">limpar filtros</button>`;
-
-	// seta no cabeçalho da coluna ordenada
-	let botoes = document.querySelectorAll('.card-tabela th button');
-	for (let i = 0; i < botoes.length; i++) {
-		let b = botoes[i];
-		b.className = b.dataset.campo == ordem.campo ? (ordem.sentido == 1 ? 'ordenado' : 'ordenado invertido') : '';
+	let itens = ponto.compartimentos
+		.filter(function (c) { return idCompartimento == '' || String(c.idCompartimento) == idCompartimento; })
+		.sort(compararUrgencia);
+	for (let i = 0; i < itens.length; i++) {
+		let c = itens[i];
+		let item = clonar('modelo-consulta');
+		let selo = item.querySelector('.situacao');
+		selo.classList.add('situacao-' + c.situacao);
+		mostrarEstado(selo, c.situacao);
+		preencherTipo(item, c.tipo, c.prioridade);
+		item.querySelector('.sensor-num-valor').textContent = c.numeroSensor;
+		preencherBarra(item.querySelector('.barra'), c);
+		item.querySelector('.nivel-texto').textContent = c.nivel == null ? '—' : Math.round(c.nivel) + '%';
+		item.querySelector('.col-previsao').textContent = textoPrevisao(c) || '—';
+		item.querySelector('.leitura-ha').textContent = c.dataHora ? formatarHaQuanto(c.minutosDesdeLeitura) : 'nunca';
+		item.querySelector('.lim-atencao').textContent = c.limiteAtencao;
+		item.querySelector('.lim-critico').textContent = c.limiteCritico;
+		caixa.appendChild(item);
 	}
 }
 
-function atualizarTabela() {
-	renderizarChips();
-	renderizarTabela();
+function abrirPontoSelecionado() {
+	abrirPonto(Number(document.getElementById('select-ponto').value));
 }
 
-function filtrarSituacao(situacoes) {
-	filtro.situacoes = situacoes;
-	atualizarTabela();
-	document.getElementById('card-tabela').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-}
-
-function aoBuscar() {
-	filtro.busca = document.getElementById('filtro-busca').value.trim();
-	atualizarTabela();
-}
-
-function aoEscolherBairro() {
-	filtro.bairro = document.getElementById('filtro-bairro').value;
-	atualizarTabela();
+function limparBairro() {
+	filtro.bairro = '';
+	renderizarConsulta();
 	atualizarGraficoBairros();
 }
 
-function limparFiltros() {
-	filtro = { busca: '', bairro: '', situacoes: [] };
-	document.getElementById('filtro-busca').value = '';
-	document.getElementById('filtro-bairro').value = '';
-	atualizarTabela();
-	atualizarGraficoBairros();
+
+// ==================================================================
+// TELA DE BAIRROS: todos os bairros, com a situação dos pontos de cada um
+// ==================================================================
+function resumoDosBairros() {
+	let mapa = {};
+	for (let i = 0; i < pontos.length; i++) {
+		let p = pontos[i];
+		if (mapa[p.bairro] == undefined) {
+			mapa[p.bairro] = { bairro: p.bairro, pontos: 0, compartimentos: 0, criticos: 0, atencao: 0, normais: 0, semLeitura: 0, somaNivel: 0, qtdNivel: 0 };
+		}
+		let b = mapa[p.bairro];
+		b.pontos++;
+		b.compartimentos += p.compartimentos.length;
+		if (p.situacao == 'critico') b.criticos++;
+		if (p.situacao == 'atencao') b.atencao++;
+		if (p.situacao == 'normal') b.normais++;
+		if (p.temSemLeitura) b.semLeitura++;
+		for (let k = 0; k < p.compartimentos.length; k++) {
+			if (p.compartimentos[k].nivel != null) {
+				b.somaNivel += p.compartimentos[k].nivel;
+				b.qtdNivel++;
+			}
+		}
+	}
+	return Object.values(mapa).sort(function (a, b) {
+		return (b.criticos - a.criticos) || (b.atencao - a.atencao) || a.bairro.localeCompare(b.bairro, 'pt-BR');
+	});
 }
 
-function ordenarPor(campo) {
-	if (ordem.campo == campo) {
-		ordem.sentido = -ordem.sentido;
-	} else {
-		ordem = { campo: campo, sentido: 1 };
+function renderizarBairros() {
+	let lista = resumoDosBairros();
+	escrever('bairros-qtd', lista.length);
+	let corpo = document.getElementById('bairros-corpo');
+	corpo.replaceChildren();
+	for (let i = 0; i < lista.length; i++) {
+		let b = lista[i];
+		let linha = document.createElement('tr');
+		linha.tabIndex = 0;
+		linha.title = 'Consultar os pontos de ' + b.bairro;
+		linha.onclick = function () { escolherBairro(b.bairro); };
+		linha.onkeydown = function (evento) { if (evento.key == 'Enter') escolherBairro(b.bairro); };
+		let media = b.qtdNivel == 0 ? '—' : Math.round(b.somaNivel / b.qtdNivel) + '%';
+		let celulas = [
+			[b.bairro, 'bairros-nome'], [b.pontos, ''], [b.compartimentos, ''],
+			[b.criticos, b.criticos > 0 ? 'bairros-critico' : 'bairros-zero'],
+			[b.atencao, b.atencao > 0 ? 'bairros-atencao' : 'bairros-zero'],
+			[b.normais, ''],
+			[b.semLeitura, b.semLeitura > 0 ? 'bairros-semleitura' : 'bairros-zero'],
+			[media, '']
+		];
+		for (let k = 0; k < celulas.length; k++) {
+			let td = document.createElement('td');
+			td.textContent = celulas[k][0];
+			td.className = celulas[k][1];
+			linha.appendChild(td);
+		}
+		corpo.appendChild(linha);
 	}
-	renderizarTabela();
+}
+
+function marcarMenu(ativo) {
+	document.getElementById('link-dashboard').classList.toggle('barra-link-ativo', ativo == 'dashboard');
+	document.getElementById('link-bairros').classList.toggle('barra-link-ativo', ativo == 'bairros');
+}
+
+function abrirBairros() {
+	pontoAberto = null;
+	fecharLista();
+	document.getElementById('visao-geral').hidden = true;
+	document.getElementById('visao-ponto').hidden = true;
+	document.getElementById('visao-bairros').hidden = false;
+	document.getElementById('botao-voltar').hidden = false;
+	document.getElementById('titulo-geral').hidden = false;
+	document.getElementById('titulo-ponto').hidden = true;
+	document.getElementById('subtitulo-geral').hidden = false;
+	document.getElementById('subtitulo-ponto').hidden = true;
+	marcarMenu('bairros');
+	window.scrollTo(0, 0);
+}
+
+// clicar num bairro volta para a visão geral e já filtra a consulta e o gráfico por ele
+function escolherBairro(nome) {
+	filtro.bairro = nome;
+	voltarVisaoGeral();
+	renderizarConsulta();
+	atualizarGraficoBairros();
+	document.getElementById('card-consulta').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+
+// ==================================================================
+// EXPORTAR CSV e REPORTAR BUG (botões do topo)
+// ==================================================================
+function celulaCSV(valor) {
+	let texto = valor == null ? '' : String(valor);
+	return /[;"\n\r]/.test(texto) ? '"' + texto.replace(/"/g, '""') + '"' : texto;
+}
+
+// exporta os compartimentos (respeitando o bairro filtrado). Separador ";" e vírgula
+// decimal: o Excel em português abre direto, e o BOM (\ufeff) mantém os acentos
+function exportarCSV() {
+	let nomes = { critico: 'Crítico', atencao: 'Atenção', semleitura: 'Sem leitura', normal: 'Normal' };
+	let linhas = [['Ponto de coleta', 'Rua', 'Bairro', 'Compartimento', 'Tipo de resíduo', 'Prioridade', 'Sensor', 'Nível (%)', 'Situação', 'Limite de atenção (%)', 'Limite crítico (%)', 'Previsão', 'Última leitura']];
+	let lista = compartimentos.filter(function (c) { return filtro.bairro == '' || c.bairro == filtro.bairro; });
+	for (let i = 0; i < lista.length; i++) {
+		let c = lista[i];
+		linhas.push([
+			c.idPonto, c.rua, c.bairro, c.idCompartimento, c.tipo, c.prioridade, c.numeroSensor,
+			c.nivel == null ? '' : String(Math.round(c.nivel * 10) / 10).replace('.', ','),
+			nomes[c.situacao], c.limiteAtencao, c.limiteCritico, textoPrevisao(c),
+			c.dataHora ? formatarDataHora(c.dataHora) : ''
+		]);
+	}
+	let texto = linhas.map(function (l) { return l.map(celulaCSV).join(';'); }).join('\r\n');
+	let arquivo = new Blob(['\ufeff' + texto], { type: 'text/csv;charset=utf-8;' });
+	let link = document.createElement('a');
+	link.href = URL.createObjectURL(arquivo);
+	link.download = 'smartcoleta_compartimentos_' + dataParaCampo(new Date()) + '.csv';
+	document.body.appendChild(link);
+	link.click();
+	link.remove();
+	URL.revokeObjectURL(link.href);
+}
+
+// abre o e-mail já preenchido com a página, a data e o navegador
+function reportarBug() {
+	let corpo = 'Descreva o problema:\n\n\n\n---\nPágina: ' + location.href +
+		'\nData e hora: ' + new Date().toLocaleString('pt-BR') +
+		'\nNavegador: ' + navigator.userAgent;
+	location.href = 'mailto:contato@smartcoleta.com.br?subject=' + encodeURIComponent('[Bug] Dashboard SmartColeta') +
+		'&body=' + encodeURIComponent(corpo);
 }
 
 
@@ -770,6 +822,7 @@ function ordenarPor(campo) {
 // GRÁFICO: PONTOS POR BAIRRO (barras horizontais empilhadas, consulta C9)
 // ==================================================================
 function atualizarGraficoBairros() {
+	if (!temGraficos) return;
 	// as linhas da C9 já vêm na ordem: mais críticos e em atenção primeiro
 	let nomes = linhasBairros.map(function (b) { return b.bairro; });
 
@@ -816,8 +869,7 @@ function atualizarGraficoBairros() {
 					if (itens.length == 0) return;
 					let nome = linhasBairros[itens[0].index].bairro;
 					filtro.bairro = filtro.bairro == nome ? '' : nome; // clicar de novo tira o filtro
-					document.getElementById('filtro-bairro').value = filtro.bairro;
-					atualizarTabela();
+					renderizarConsulta();
 					atualizarGraficoBairros();
 				},
 				onHover: function (evento, itens) {
@@ -844,11 +896,18 @@ function abrirPonto(idPonto) {
 	let dadosPonto = carregarPonto(idPonto);
 
 	document.getElementById('visao-geral').hidden = true;
+	document.getElementById('visao-bairros').hidden = true;
 	document.getElementById('visao-ponto').hidden = false;
+	marcarMenu('dashboard');
 	document.getElementById('botao-voltar').hidden = false;
-	document.getElementById('painel-titulo').innerHTML = `${escapar(ponto.rua)} · ${escapar(ponto.bairro)}`;
-	document.getElementById('painel-subtitulo').innerHTML =
-		`Ponto de coleta ${ponto.idPonto} · ${ponto.compartimentos.length} compartimentos · ${CIDADE}`;
+	document.getElementById('titulo-geral').hidden = true;
+	document.getElementById('titulo-ponto').hidden = false;
+	document.getElementById('subtitulo-geral').hidden = true;
+	document.getElementById('subtitulo-ponto').hidden = false;
+	escrever('titulo-rua', ponto.rua);
+	escrever('titulo-bairro', ponto.bairro);
+	escrever('subtitulo-id-ponto', ponto.idPonto);
+	escrever('subtitulo-qtd-ponto', ponto.compartimentos.length);
 	window.scrollTo(0, 0);
 
 	renderizarDiagnostico(ponto);
@@ -862,92 +921,93 @@ function abrirPonto(idPonto) {
 function voltarVisaoGeral() {
 	pontoAberto = null;
 	document.getElementById('visao-ponto').hidden = true;
+	document.getElementById('visao-bairros').hidden = true;
 	document.getElementById('visao-geral').hidden = false;
+	marcarMenu('dashboard');
 	document.getElementById('botao-voltar').hidden = true;
-	document.getElementById('painel-titulo').innerHTML = 'Monitoramento das lixeiras';
+	document.getElementById('titulo-geral').hidden = false;
+	document.getElementById('titulo-ponto').hidden = true;
+	document.getElementById('subtitulo-geral').hidden = false;
+	document.getElementById('subtitulo-ponto').hidden = true;
 	renderizarTopo();
 }
 
 // DIAGNÓSTICO: o que fazer com este ponto e por quê
 function renderizarDiagnostico(ponto) {
 	let card = document.getElementById('diagnostico');
-	let rotulo = document.getElementById('diag-rotulo');
-	let titulo = document.getElementById('diag-titulo');
-	let texto = document.getElementById('diag-texto');
 	let g = ponto.gatilho;
-	let qtd = ponto.compartimentos.length;
 	let previsao = textoPrevisao(g);
 
-	if (ponto.situacao == 'critico') {
-		card.className = 'card alerta diagnostico alerta-critico';
-		rotulo.innerHTML = ICONE_ALERTA + 'Ação agora';
-		titulo.innerHTML = `Coletar agora: ${escapar(g.tipo)} em ${Math.round(g.nivel)}%`;
-		texto.innerHTML = `Passou do limite crítico (${g.limiteCritico}%)${previsao && previsao != 'Cheio' ? ' e fica ' + previsao : ''}. O caminhão recolhe os ${qtd} compartimentos do ponto.`;
-	} else if (ponto.situacao == 'atencao') {
-		card.className = 'card alerta diagnostico alerta-atencao';
-		rotulo.innerHTML = ICONE_ALERTA + 'Programar coleta';
-		titulo.innerHTML = `Incluir na próxima rota: ${escapar(g.tipo)} em ${Math.round(g.nivel)}%`;
-		texto.innerHTML = `Passou do limite de atenção (${g.limiteAtencao}%)${previsao ? ' e chega ao ' + previsao : ''}. O caminhão recolhe os ${qtd} compartimentos do ponto.`;
-	} else if (ponto.situacao == 'semleitura') {
-		card.className = 'card alerta diagnostico alerta-semleitura';
-		rotulo.innerHTML = 'Manutenção';
-		titulo.innerHTML = 'Sem leitura dos sensores';
-		texto.innerHTML = 'Verifique os sensores no local antes de decidir a coleta.';
-	} else {
-		card.className = 'card alerta diagnostico alerta-normal';
-		rotulo.innerHTML = 'Sem necessidade de coleta';
-		titulo.innerHTML = 'Todos os compartimentos abaixo do limite de atenção';
-		texto.innerHTML = previsao ? `O primeiro a chegar ao limite é o ${escapar(g.tipo)}: ${previsao}.` : 'Nenhum compartimento enchendo no momento.';
-	}
-	if (ponto.temSemLeitura && ponto.situacao != 'semleitura') {
-		texto.innerHTML += ' <strong>Há sensor sem leitura neste ponto.</strong>';
-	}
+	card.className = 'card alerta diagnostico alerta-' + ponto.situacao;
+	mostrarEstado(card, ponto.situacao);
+	escreverEm(card, '.diag-gatilho-tipo', g.tipo);
+	escreverEm(card, '.diag-gatilho-nivel', g.nivel == null ? '' : Math.round(g.nivel));
+	escreverEm(card, '.diag-limite-critico', g.limiteCritico);
+	escreverEm(card, '.diag-limite-atencao', g.limiteAtencao);
+	escreverEm(card, '.diag-previsao', previsao);
+	escreverEm(card, '.diag-qtd', ponto.compartimentos.length);
+	mostrar(card.querySelector('.diag-fica'), previsao != '' && previsao != 'Cheio');
+	mostrar(card.querySelector('.diag-chega'), previsao != '');
+	mostrar(card.querySelector('.diag-com-previsao'), previsao != '');
+	mostrar(card.querySelector('.diag-sem-previsao'), previsao == '');
+	mostrar(document.getElementById('diag-aviso-semleitura'), ponto.temSemLeitura && ponto.situacao != 'semleitura');
 
 	// um compartimento por linha, do mais urgente para o menos urgente
 	let lista = ponto.compartimentos.slice().sort(compararUrgencia);
-	let html = '';
+	let ul = document.getElementById('diag-lista');
+	ul.replaceChildren();
 	for (let i = 0; i < lista.length; i++) {
 		let c = lista[i];
-		let detalhe = c.situacao == 'semleitura'
-			? `sensor ${c.numeroSensor} ${formatarParado(c.minutosDesdeLeitura)}`
-			: `${textoPrevisao(c) ? textoPrevisao(c) + ' · ' : ''}limites ${c.limiteAtencao}% / ${c.limiteCritico}%`;
-		html += `
-			<li class="diag-item">
-				<span class="diag-tipo">${rotuloTipo(c.tipo, c.prioridade)}</span>
-				${barraNivel(c)}
-				<span class="diag-nivel nivel-${c.situacao}">${c.nivel == null ? '—' : Math.round(c.nivel) + '%'}</span>
-				<span class="diag-detalhe">${detalhe}</span>
-			</li>`;
+		let item = clonar('modelo-diag-item');
+		let semLeitura = c.situacao == 'semleitura';
+		let previsaoItem = textoPrevisao(c);
+		preencherTipo(item.querySelector('.diag-tipo'), c.tipo, c.prioridade);
+		preencherBarra(item.querySelector('.barra'), c);
+		let nivel = item.querySelector('.diag-nivel');
+		nivel.classList.add('nivel-' + c.situacao);
+		nivel.textContent = c.nivel == null ? '—' : Math.round(c.nivel) + '%';
+		mostrar(item.querySelector('.diag-detalhe-semleitura'), semLeitura);
+		mostrar(item.querySelector('.diag-detalhe-leitura'), !semLeitura);
+		item.querySelector('.diag-sensor').textContent = c.numeroSensor;
+		item.querySelector('.diag-parado').textContent = formatarParado(c.minutosDesdeLeitura);
+		mostrar(item.querySelector('.diag-previsao-caixa'), previsaoItem != '');
+		item.querySelector('.diag-previsao-item').textContent = previsaoItem;
+		item.querySelector('.diag-lim-atencao').textContent = c.limiteAtencao;
+		item.querySelector('.diag-lim-critico').textContent = c.limiteCritico;
+		ul.appendChild(item);
 	}
-	document.getElementById('diag-lista').innerHTML = html;
 }
 
 // ÚLTIMA COLETA: nível de cada compartimento na hora da coleta (C4, tabela N:M)
 function renderizarUltimaColeta(linhas) {
-	if (linhas.length == 0) {
-		document.getElementById('coleta-data').innerHTML = 'Nenhuma';
-		document.getElementById('coleta-ha').innerHTML = 'Este ponto ainda não teve coleta registrada.';
-		document.getElementById('coleta-itens').innerHTML = '';
-		document.getElementById('coleta-nota').innerHTML = '';
-		return;
-	}
-	let data = lerData(linhas[0].dataHoraColeta);
-	document.getElementById('coleta-data').innerHTML = formatarDataHora(data);
-	document.getElementById('coleta-ha').innerHTML = `${formatarHaQuanto(Number(linhas[0].minutosDesdeColeta))} · nível de cada compartimento na hora da coleta`;
+	let temColeta = linhas.length > 0;
+	let nota = document.getElementById('coleta-nota');
+	let ul = document.getElementById('coleta-itens');
+	mostrar(document.getElementById('coleta-data'), temColeta);
+	mostrar(document.getElementById('coleta-nenhuma'), !temColeta);
+	mostrar(document.getElementById('coleta-ha-caixa'), temColeta);
+	mostrar(document.getElementById('coleta-sem'), !temColeta);
+	mostrar(nota, temColeta);
+	ul.replaceChildren();
+	if (!temColeta) return;
 
-	let html = '';
+	escrever('coleta-data', formatarDataHora(lerData(linhas[0].dataHoraColeta)));
+	escrever('coleta-ha', formatarHaQuanto(Number(linhas[0].minutosDesdeColeta)));
+
 	let tarde = false;
 	for (let i = 0; i < linhas.length; i++) {
 		let l = linhas[i];
 		let situacao = SITUACOES[l.situacaoNaColeta];
 		if (situacao == 'critico') tarde = true;
-		html += `<li><span>${rotuloTipo(l.tipoResiduo, l.prioridade)}</span><strong class="nivel-${situacao}">${Math.round(Number(l.percentualAntes))}%</strong></li>`;
+		let item = clonar('modelo-coleta-item');
+		preencherTipo(item, l.tipoResiduo, l.prioridade);
+		item.querySelector('strong').className = 'nivel-' + situacao;
+		item.querySelector('.coleta-nivel').textContent = Math.round(Number(l.percentualAntes));
+		ul.appendChild(item);
 	}
-	document.getElementById('coleta-itens').innerHTML = html;
-	document.getElementById('coleta-nota').innerHTML = tarde
-		? 'Coletada com compartimento já em nível crítico: vale antecipar a próxima.'
-		: 'Coletada antes do nível crítico.';
-	document.getElementById('coleta-nota').className = tarde ? 'coleta-nota coleta-nota-tarde' : 'coleta-nota';
+	nota.className = tarde ? 'coleta-nota coleta-nota-tarde' : 'coleta-nota';
+	mostrar(document.getElementById('coleta-nota-tarde'), tarde);
+	mostrar(document.getElementById('coleta-nota-ok'), !tarde);
 }
 
 
@@ -955,15 +1015,13 @@ function renderizarUltimaColeta(linhas) {
 
 // botões 24 h | 7 dias | 30 dias | 90 dias
 function renderizarSeletorPeriodo() {
-	let html = '';
-	let chaves = Object.keys(PERIODOS);
-	for (let i = 0; i < chaves.length; i++) {
-		let chave = chaves[i];
-		let ativo = chave == periodoHistorico;
-		html += `<button type="button" class="${ativo ? 'ativo' : ''}" aria-pressed="${ativo}" onclick="escolherPeriodo('${chave}')">${PERIODOS[chave].rotulo}</button>`;
+	let botoes = document.querySelectorAll('#seletor-periodo button');
+	for (let i = 0; i < botoes.length; i++) {
+		let ativo = botoes[i].dataset.periodo == periodoHistorico;
+		botoes[i].classList.toggle('ativo', ativo);
+		botoes[i].setAttribute('aria-pressed', ativo);
 	}
-	document.getElementById('seletor-periodo').innerHTML = html;
-	document.getElementById('historico-subtitulo').innerHTML = PERIODOS[periodoHistorico].subtitulo;
+	mostrarEstado(document.getElementById('historico-subtitulo'), periodoHistorico);
 }
 
 function escolherPeriodo(chave) {
@@ -1016,28 +1074,31 @@ function tituloDoIntervalo(chave, inicio) {
 
 // tooltip com TODOS os compartimentos no horário apontado: acha o ponto mais
 // próximo e junta o ponto de cada linha com o mesmo horário (até meio intervalo)
-Chart.Interaction.modes.mesmoHorario = function (chart, evento, opcoes, usarFinal) {
-	let maisProximo = Chart.Interaction.modes.nearest(chart, evento, { axis: 'x', intersect: false }, usarFinal);
-	if (maisProximo.length == 0) return [];
-	let x = maisProximo[0].element.x;
-	let tolerancia = 4;
-	let itens = [];
-	chart.data.datasets.forEach(function (conjunto, indice) {
-		let meta = chart.getDatasetMeta(indice);
-		if (meta.hidden) return;
-		let melhor = null;
-		meta.data.forEach(function (elemento, j) {
-			let distancia = Math.abs(elemento.x - x);
-			if (distancia <= tolerancia && (melhor == null || distancia < melhor.distancia)) {
-				melhor = { element: elemento, datasetIndex: indice, index: j, distancia: distancia };
-			}
+if (temGraficos) {
+	Chart.Interaction.modes.mesmoHorario = function (chart, evento, opcoes, usarFinal) {
+		let maisProximo = Chart.Interaction.modes.nearest(chart, evento, { axis: 'x', intersect: false }, usarFinal);
+		if (maisProximo.length == 0) return [];
+		let x = maisProximo[0].element.x;
+		let tolerancia = 4;
+		let itens = [];
+		chart.data.datasets.forEach(function (conjunto, indice) {
+			let meta = chart.getDatasetMeta(indice);
+			if (meta.hidden) return;
+			let melhor = null;
+			meta.data.forEach(function (elemento, j) {
+				let distancia = Math.abs(elemento.x - x);
+				if (distancia <= tolerancia && (melhor == null || distancia < melhor.distancia)) {
+					melhor = { element: elemento, datasetIndex: indice, index: j, distancia: distancia };
+				}
+			});
+			if (melhor) itens.push(melhor);
 		});
-		if (melhor) itens.push(melhor);
-	});
-	return itens;
-};
+		return itens;
+	};
+}
 
 function renderizarHistorico() {
+	if (!temGraficos) return;
 	let ponto = pontoAberto;
 	let chave = periodoHistorico;
 	let linhas = carregarHistorico(ponto.idPonto, chave);
@@ -1136,31 +1197,31 @@ function renderizarLeiturasDia() {
 	let data = document.getElementById('leituras-data').value;
 	let linhas = carregarLeiturasDia(pontoAberto.idPonto, data);
 	let partes = data.split('-');
-	let diaTexto = `${partes[2]}/${partes[1]}`;
+	escreverEm(document, '.leituras-dia', `${partes[2]}/${partes[1]}`);
 
-	let html = '';
+	let corpo = document.getElementById('leituras-corpo');
+	corpo.replaceChildren();
 	for (let i = 0; i < linhas.length; i++) {
 		let l = linhas[i];
-		html += `
-			<tr>
-				<td>${formatarHora(lerData(l.dataHora))}</td>
-				<td>${rotuloTipo(l.tipoResiduo, l.prioridade)}</td>
-				<td>${l.numeroSensor}</td>
-				<td>${formatarNumero(Number(l.distanciaCm), 1)} cm</td>
-				<td><strong class="nivel-${SITUACOES[l.situacao]}">${Math.round(Number(l.nivelPct))}%</strong></td>
-			</tr>`;
+		let linha = clonar('modelo-leitura');
+		linha.querySelector('.leitura-hora').textContent = formatarHora(lerData(l.dataHora));
+		preencherTipo(linha, l.tipoResiduo, l.prioridade);
+		linha.querySelector('.leitura-sensor').textContent = l.numeroSensor;
+		linha.querySelector('.leitura-distancia').textContent = formatarNumero(Number(l.distanciaCm), 1);
+		linha.querySelector('.leitura-nivel').className = 'leitura-nivel nivel-' + SITUACOES[l.situacao];
+		linha.querySelector('.leitura-nivel-valor').textContent = Math.round(Number(l.nivelPct));
+		corpo.appendChild(linha);
 	}
-	document.getElementById('leituras-corpo').innerHTML = html;
 	// volta a lista para o topo (a leitura mais nova) ao trocar de data
 	document.getElementById('leituras-rolagem').scrollTop = 0;
 
 	let vazio = linhas.length == 0;
 	document.getElementById('leituras-rolagem').hidden = vazio;
 	document.getElementById('leituras-vazia').hidden = !vazio;
-	document.getElementById('leituras-vazia').innerHTML = `Nenhuma leitura em ${diaTexto}`;
-	document.getElementById('leituras-contagem').innerHTML = vazio
-		? 'Escolha outra data'
-		: `${linhas.length} ${plural(linhas.length, 'leitura', 'leituras')} em ${diaTexto} · mais nova primeiro`;
+	mostrar(document.getElementById('leituras-com'), !vazio);
+	mostrar(document.getElementById('leituras-sem'), vazio);
+	escrever('leituras-qtd', linhas.length);
+	aplicarPlural(document.getElementById('leituras-palavra'), linhas.length);
 }
 
 
@@ -1173,14 +1234,15 @@ function atualizarTudo() {
 	renderizarTopo();
 	renderizarAlerta();
 	renderizarIndicadores();
-	renderizarFiltros();
-	atualizarTabela();
+	renderizarConsulta();
+	renderizarBairros();
 	atualizarGraficoBairros();
 }
 
 function trocarCenario() {
 	exemploAtual = null;
-	limparFiltros();
+	filtro.bairro = '';
+	document.getElementById('select-ponto').value = '';
 	voltarVisaoGeral();
 	atualizarTudo();
 }
