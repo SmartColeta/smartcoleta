@@ -4,7 +4,7 @@
 <head>
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-	<title>Dashboard | SmartColeta</title>
+	<title>SmartColeta | Monitoramento da coleta de resíduos</title>
 	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
 	<!-- Importando icone da aba do navegador -->
@@ -17,7 +17,7 @@
 	<!-- defer: os scripts rodam depois que o HTML foi lido, nesta ordem.
 	     dados-exemplo.js primeiro (sai quando a dash ler o banco), depois dashboard.js -->
 	<script src="/js/dashboard/dados-exemplo.js" defer></script>
-	<script src="/js/dashboard/dashboard.js" defer></script>
+	<script src="/js/dashboard.js" defer></script>
 </head>
 
 <body>
@@ -128,7 +128,7 @@
 											<th><button type="button" data-campo="compartimento" onclick="ordenarPor('compartimento')">Compartimento</button></th>
 											<th><button type="button" data-campo="nivel" onclick="ordenarPor('nivel')">Nível</button></th>
 											<th><button type="button" data-campo="previsao" onclick="ordenarPor('previsao')">Previsão</button></th>
-											<th class="col-leitura"><button type="button" data-campo="leitura" onclick="ordenarPor('leitura')">Última leitura</button></th>
+											<th class="col-leitura"><button type="button" data-campo="leitura" onclick="ordenarPor('leitura')">Última atualização às </button></th>
 										</tr>
 									</thead>
 									<tbody id="tabela-corpo"></tbody>
