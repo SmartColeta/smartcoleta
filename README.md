@@ -101,33 +101,6 @@ necessitam de coleta.
 
 ---
 
-## ✅ Entregáveis
-| # | Entregável | Matéria | Progresso |
-|:-:|------------|---------|-----------|
-| 1 | Projeto atualizado no GitHub | Pesquisa e Inovação | `▰▰▰▰▰▰▰▰▰▰ 100%` |
-| 2 | Documentação do Projeto atualizada | Pesquisa e Inovação | `▰▰▰▰▰▰▰▰▰▰ 100%` |
-| 3 | Planilha de Riscos do Projeto | Pesquisa e Inovação | `▰▰▰▰▰▰▰▰▰▰ 100%` |
-| 4 | Especificação da Dashboard | Pesquisa e Inovação | `▰▰▰▰▰▰▰▰▰▰ 100%` |
-| - |------------|---------|-----------|
-| 1 | Site Estático Institucional | Algoritmos | `▰▰▰▰▰▰▰▰▰▰ 100%` |
-| 2 | Site Estático Dashboard | Algoritmos | `▰▰▰▰▰▰▰▰▰▰ 100%` |
-| 3 | Site Estático Cadastro e Login | Algoritmos | `▰▰▰▰▰▰▰▰▰▰ 100%` |
-| - |------------|---------|-----------|
-| 1 | Diagrama de Solução (Arquitetura Técnica do Projeto) | Tecnologia da Informação | `▰▰▰▰▰▰▰▰▰▰ 100%` |
-| 2 | Atividades organizadas na ferramenta de Gestão | Tecnologia da Informação | `▰▰▰▰▰▰▰▰▰▰ 100%` |
-| 3 | Backlog da Sprint | Tecnologia da Informação | `▰▰▰▰▰▰▰▰▰▰ 100%` |
-| - |------------|---------|-----------|
-| 1 | Modelagem lógica do Projeto v1 | Banco de Dados | `▰▰▰▰▰▰▰▰▰▰ 100%` |
-| 2 | Script de criação do banco | Banco de Dados | `▰▰▰▰▰▰▰▰▰▰ 100%` |
-| 3 | Tabelas criadas em BD local | Banco de Dados | `▰▰▰▰▰▰▰▰▰▰ 100%` |
-| - |------------|---------|-----------|
-| 1 | Teste com Sensor do Projeto + Gráficos | Arquitetura Computacional | `▰▰▰▰▰▰▰▰▰▰ 100%` |
-| 2 | Usar API Local/Sensor | Arquitetura Computacional | `▰▰▰▰▰▰▰▰▰▰ 100%` |
-| - |------------|---------|-----------|
-| 1 | Instalar MySQL no servidor de dados da solução (VMLinux) | Introdução a Sistemas Operacionais | `▰▰▰▰▰▰▰▰▰▰ 100%` |
-| 2 | Inserção de dados do Arduino no MySQL (VMLinux) | Introdução a Sistemas Operacionais | `▰▰▰▰▰▰▰▰▰▰ 100%` |
-| 3 | Validar solução técnica + Diagrama da Solução (Validado) | Introdução a Sistemas Operacionais | `▰▰▰▰▰▰▰▰▰▰ 100%` |
-
 ## 🎓 Contexto acadêmico
 
 Projeto desenvolvido por estudantes de **Análise e Desenvolvimento de Sistemas
