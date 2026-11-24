@@ -87,35 +87,34 @@ let graficoHistorico = null;
 //   fetch(`/dashboard/estado/${idPrefeitura}`).then(r => r.json())
 // O resto da página não muda.
 // ==================================================================
-function exemplo() {
-	return obterExemplo(agora, Number(document.getElementById('cenario').value));
-}
-
 // visão geral: C1 (estado de cada compartimento), C8 (resumo) e C9 (bairros)
-function carregarDados() {
-	let ex = exemplo();
-	return { linhasEstado: ex.linhasEstado, resumo: ex.resumo, bairros: ex.bairros };
+async function carregarDados() {
+	let resposta = await fetch(`/dashboard/estado/${sessionStorage.ID_PREFEITURA}`);
+	return await resposta.json();
 }
 
 // visão do ponto: C4 (última coleta)
-function carregarPonto(idPonto) {
-	return { ultimaColeta: exemplo().ultimaColeta(idPonto) };
+async function carregarPonto(idPonto) {
+	let resposta = await fetch(`/dashboard/ponto/${idPonto}`);
+	return { ultimaColeta: await resposta.json() };
 }
 
 // C3a a C3d: só aceita as chaves de PERIODOS (a API faz a mesma checagem)
-function carregarHistorico(idPonto, periodo) {
+async function carregarHistorico(idPonto, periodo) {
 	if (PERIODOS[periodo] == undefined) {
 		return [];
 	}
-	return exemplo().historico(idPonto, periodo);
+	let resposta = await fetch(`/dashboard/historico/${idPonto}/${periodo}`);
+	return await resposta.json();
 }
 
 // C6: a data precisa estar no formato AAAA-MM-DD (a API faz a mesma checagem)
-function carregarLeiturasDia(idPonto, data) {
+async function carregarLeiturasDia(idPonto, data) {
 	if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) {
 		return [];
 	}
-	return exemplo().leiturasDoDia(idPonto, data);
+	let resposta = await fetch(`/dashboard/leituras/${idPonto}/${data}`);
+	return await resposta.json();
 }
 
 
@@ -887,13 +886,13 @@ function atualizarGraficoBairros() {
 // ==================================================================
 // VISÃO DE UM PONTO
 // ==================================================================
-function abrirPonto(idPonto) {
+async function abrirPonto(idPonto) {
 	let ponto = pontosPorId[idPonto];
 	if (ponto == undefined) return;
 	pontoAberto = ponto;
 	fecharLista();
 
-	let dadosPonto = carregarPonto(idPonto);
+	let dadosPonto = await carregarPonto(idPonto);
 
 	document.getElementById('visao-geral').hidden = true;
 	document.getElementById('visao-bairros').hidden = true;
@@ -1097,11 +1096,11 @@ if (temGraficos) {
 	};
 }
 
-function renderizarHistorico() {
+async function renderizarHistorico() {
 	if (!temGraficos) return;
 	let ponto = pontoAberto;
 	let chave = periodoHistorico;
-	let linhas = carregarHistorico(ponto.idPonto, chave);
+	let linhas = await carregarHistorico(ponto.idPonto, chave);
 
 	// uma linha (dataset) por compartimento, na ordem de prioridade
 	let porCompartimento = ponto.compartimentos.slice().sort(function (a, b) { return a.prioridade - b.prioridade; });
@@ -1193,9 +1192,9 @@ function aoEscolherData() {
 	renderizarLeiturasDia();
 }
 
-function renderizarLeiturasDia() {
+async function renderizarLeiturasDia() {
 	let data = document.getElementById('leituras-data').value;
-	let linhas = carregarLeiturasDia(pontoAberto.idPonto, data);
+	let linhas = await carregarLeiturasDia(pontoAberto.idPonto, data);
 	let partes = data.split('-');
 	escreverEm(document, '.leituras-dia', `${partes[2]}/${partes[1]}`);
 
@@ -1228,27 +1227,28 @@ function renderizarLeiturasDia() {
 // ==================================================================
 // INICIALIZAÇÃO
 // ==================================================================
-function atualizarTudo() {
+async function atualizarTudo() {
 	agora = new Date();
-	prepararDados(carregarDados());
+	prepararDados(await carregarDados());
 	renderizarTopo();
 	renderizarAlerta();
 	renderizarIndicadores();
 	renderizarConsulta();
 	renderizarBairros();
 	atualizarGraficoBairros();
-}
 
-function trocarCenario() {
-	exemploAtual = null;
-	filtro.bairro = '';
-	document.getElementById('select-ponto').value = '';
-	voltarVisaoGeral();
-	atualizarTudo();
+	// se há um ponto aberto, atualiza a visão dele também (sem voltar ao topo nem trocar a data)
+	if (pontoAberto != null) {
+		pontoAberto = pontosPorId[pontoAberto.idPonto];
+		renderizarDiagnostico(pontoAberto);
+		renderizarUltimaColeta((await carregarPonto(pontoAberto.idPonto)).ultimaColeta);
+		renderizarHistorico();
+		renderizarLeiturasDia();
+	}
 }
 
 
 // começa aqui (no fim do script, depois de todas as variáveis declaradas)
 atualizarTudo();
-// Com o banco: atualizar a cada 1 min (o sensor manda leitura a cada 15 min)
-// setInterval(atualizarTudo, 60000);
+// atualiza a dash a cada 1 min (o sensor manda leitura a cada 15 min)
+setInterval(atualizarTudo, 60000);
